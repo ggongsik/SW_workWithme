@@ -95,8 +95,21 @@ function startPostureTracking() {
         if (!blob) return;
         // 이미지의 ArrayBuffer 추출
         const imageBuffer = await blob.arrayBuffer();
+        let currentType = "monitoring";
+
+        const baseBtn = document.getElementById('calib-base-btn');
+        if (baseBtn && baseBtn.innerText.includes("측정 중")) {
+           currentType = "calibration";
+        }
+
+        const payloadData = { 
+          type: currentType,         
+          points: payloadPoints, 
+          timestamp: Date.now() 
+        };
+
         // 메타데이터(좌표, 시간)를 JSON 문자열로 만든 뒤 UTF-8 바이트 배열로 변환
-        const metaStr = JSON.stringify({ points: payloadPoints, timestamp: Date.now() });
+        const metaStr = JSON.stringify(payloadData);
         const metaBytes = new TextEncoder().encode(metaStr);
         
         const totalLength = 4 + metaBytes.length + imageBuffer.byteLength;
@@ -113,28 +126,7 @@ function startPostureTracking() {
 
         console.log("[웹소켓 전송] 좌표 데이터:\n", metaStr);
         console.log(`[웹소켓 전송] 전체 크기: ${finalBuffer.byteLength} bytes (이미지: ${imageBuffer.byteLength} bytes)`);
-         /*
-        let debugImg = document.getElementById('debug-preview-img');
-        if (!debugImg) {
-          // 이미지를 보여줄 태그가 없으면 화면 좌측 상단에 새로 만듭니다.
-          debugImg = document.createElement('img');
-          debugImg.id = 'debug-preview-img';
-          debugImg.style.position = 'absolute';
-          debugImg.style.top = '10px';
-          debugImg.style.left = '10px';
-          debugImg.style.width = '160px'; // 화면을 가리지 않게 작게 표시
-          debugImg.style.border = '2px solid #00bfff';
-          debugImg.style.zIndex = '9999';
-          document.body.appendChild(debugImg);
-        }
-
-        const testBlob = new Blob([imageBuffer], { type: 'image/jpeg' });
-        const imageUrl = URL.createObjectURL(testBlob);
-        debugImg.src = imageUrl; // 1초마다 이미지를 교체해서 보여줍니다.
-
-        // 브라우저 메모리가 터지지 않도록, 이미지가 로딩되면 이전 링크는 메모리에서 삭제합니다.
-        debugImg.onload = () => URL.revokeObjectURL(imageUrl);
-        */
+        
         // 웹소켓으로 바이너리 전송!
         sendPoseData(finalBuffer);
       }, 'image/jpeg', 0.8); // 화질 80% (hd)JPEG
@@ -192,11 +184,17 @@ export function closeCalibration() {
     baseBtn.innerText = "기본 자세 설정";
   }
 
-  // ✨ 핵심 로직: 현재 '트래킹(자세 교정)' 중이 아니라면 카메라 전원을 내립니다!
+  // 현재 '트래킹(자세 교정)' 중이 아니라면 카메라 전원을 내립니다!
   // 트래킹 중일 때 창을 닫으면 백그라운드 작동을 위해 카메라는 켜둡니다.
   if (!isTracking) {
     stopCamera();
-    console.log("📷 웹캠 전원이 완전히 차단되었습니다.");
+    //캘리브레이션 도중에 창을 닫아버린 경우, 임시로 켜둔 전송 루프도 같이 꺼줍니다.
+    if (trackingTimer) {
+      clearInterval(trackingTimer);
+      trackingTimer = null;
+    }
+
+    console.log("웹캠 전원이 완전히 차단되었습니다.");
   }
 }
 
@@ -217,6 +215,12 @@ export function startCalibration() {
   let count = 10;
   baseBtn.innerText = `측정 중... (${count}초 남음)`;
   
+  const wasTracking = isTracking;
+  // 만약 교정 시작을 안 한 상태에서 캘리브레이션을 눌렀다면, 10초 동안 백엔드로 데이터를 보내기 위해 임시로 전송 루프를 켬
+  if (!wasTracking) {
+    startPostureTracking();
+  }
+
   calibTimer = setInterval(() => {
     count--;
     if (count > 0) {
@@ -230,6 +234,13 @@ export function startCalibration() {
       baseBtn.style.background = "rgba(0, 255, 127, 0.2)";
       baseBtn.style.borderColor = "#00ff7f";
       baseBtn.style.color = "#00ff7f";
+
+      if (!wasTracking && !isTracking) {
+         if (trackingTimer) {
+           clearInterval(trackingTimer);
+           trackingTimer = null;
+         }
+      }
       
       setTimeout(() => {
          baseBtn.disabled = false;
