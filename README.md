@@ -24,3 +24,11 @@
 VScode에서 src폴더 열고 index.html을 우클릭해 open with Live server로 실행
 id:admin , pw:1234
 참고: https://velog.io/@joajoa/VSCode-Live-Server-%EC%82%AC%EC%9A%A9%ED%95%98%EA%B8%B0
+
+<백엔드 서버설정>
+network.js 파일에서 
+export function initWebSocket() {
+  ws = new WebSocket('ws://localhost:8080'); // 실제 백엔드 주소로 바꿔주세요
+  ws.binaryType = 'arraybuffer'; 
+
+이 부분에 실제 백엔드 주소로 바꿔주세요
