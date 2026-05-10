@@ -1,15 +1,19 @@
 # SW_workWithme
 공개SW 1조
 
-<웹소켓 바이너리 패킷 구조>
+</br>
+## <웹소켓 바이너리 패킷 구조>
 
-오프셋 (Offset)크기 (Size)데이터 타입설명
-[0 ~ 3]4 BytesUint32 (Little-Endian)뒤따라오는 JSON 텍스트의 바이트 길이(Length)
-[4 ~ 4+Length]가변 길이UTF-8 String랜드마크 좌표 및 타입 정보가 담긴 JSON 텍스트
-[4+Length ~ 끝]가변 길이Binary웹캠 캡처 원본 JPEG 이미지 파일
+| 오프셋 | 크기 | 데이터 | 타입설명 |
+| [0 ~ 3] | 4 Bytes | Uint32 (Little-Endian) | 뒤따라오는 JSON 텍스트의 바이트 길이(Length)|
+| [4 ~ 4+Length] | 가변 길이 | UTF-8 String | 랜드마크 좌표 및 타입 정보가 담긴 JSON 텍스트|
+| [4+Length ~ 끝] | 가변 길이 | Binary | 웹캠 캡처 원본 JPEG 이미지 파일 |
+
+</br>
 
   (Offset 4 구간)바이너리에서 추출한 JSON 텍스트를 파싱하면 아래와 같은 구조를 가집니다.
-  
+
+'''
   JSON{
   "type": "calibration",  // 상태 라우팅 키: "calibration" (10초 측정 중) 또는 "monitoring" (자세 교정 중)
   "points": {
@@ -19,6 +23,7 @@
   },
   "timestamp": 1715694200000 // 프론트엔드 프레임 생성 시점 (ms)
 }
+'''
 
 <프론트엔드 구동>
 VScode에서 src폴더 열고 index.html을 우클릭해 open with Live server로 실행
