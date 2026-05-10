@@ -45,3 +45,4 @@ export function initWebSocket() {
   ws.binaryType = 'arraybuffer'; 
 }
 ```
+
