@@ -227,3 +227,4 @@ class PosturePipeline:
 추가는 `summary_json` 필드에 넣으면 되니 부담 없음.
 
 ---
+---
