@@ -163,9 +163,9 @@ async def _handle_frame(state: SessionState, frame_bytes: bytes) -> None:
     )
 
     if not result["detected"]:
-        # 포즈가 감지 안 됨: 에러까진 아니고 그냥 무시 + 로그
-        # Step 8에서 "사용자가 자리에 없음" 알림으로 확장 가능
-        # 어떻게 할지 상의 필요
+        """
+        사용자가 자리를 비울 때
+        """
         return
 
     if state.mode == "calibrating":
