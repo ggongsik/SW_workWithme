@@ -15,7 +15,7 @@ const WARN_THRESHOLD_MIN = 1; // 1분
 const ALERT_THRESHOLD_MIN = 5; // 5분
 
 export function initWebSocket() {
-  ws = new WebSocket('ws://localhost:8080'); // 실제 백엔드 주소로 바꿔주세요
+  ws = new WebSocket('ws://localhost:8000/ws/posture'); // 실제 백엔드 주소로 바꿔주세요
   ws.binaryType = 'arraybuffer'; 
   
   ws.onopen = () => console.log('WebSocket Connected');
@@ -81,5 +81,14 @@ function changeUIState(newState) {
 export function sendPoseData(buffer) {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(buffer); 
+  }
+}
+
+// 백엔드에 텍스트 제어 메시지를 보내는 함수 추가
+export function sendCommand(commandType) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    const msg = JSON.stringify({ type: commandType });
+    ws.send(msg);
+    console.log(`[웹소켓 명령 전송] ${msg}`);
   }
 }
