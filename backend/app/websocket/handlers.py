@@ -24,7 +24,7 @@ from app.models.schemas import (
     DetectionResult as DetectionResultMsg,
     SessionEnded
 )
-
+#
 _ai_pipeline: PosturePipeline = MockPosturePipeline()
 
 # Pydantic 모델(객체)을 JSON으로 전송
