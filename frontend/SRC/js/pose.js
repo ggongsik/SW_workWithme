@@ -93,42 +93,8 @@ function startPostureTracking() {
       
       encodeCanvas.toBlob(async (blob) => {
         if (!blob) return;
-        // 이미지의 ArrayBuffer 추출
         const imageBuffer = await blob.arrayBuffer();
-        let currentType = "monitoring";
-
-        const baseBtn = document.getElementById('calib-base-btn');
-        if (baseBtn && baseBtn.innerText.includes("측정 중")) {
-           currentType = "calibration";
-        }
-
-        const payloadData = { 
-          type: currentType,         
-          points: payloadPoints, 
-          timestamp: Date.now() 
-        };
-
-        // 메타데이터(좌표, 시간)를 JSON 문자열로 만든 뒤 UTF-8 바이트 배열로 변환
-        const metaStr = JSON.stringify(payloadData);
-        const metaBytes = new TextEncoder().encode(metaStr);
-        
-        const totalLength = 4 + metaBytes.length + imageBuffer.byteLength;
-        const finalBuffer = new ArrayBuffer(totalLength);
-        const dataView = new DataView(finalBuffer);
-        const uint8View = new Uint8Array(finalBuffer);
-        
-        // 1) JSON 길이 쓰기 (Little-Endian)
-        dataView.setUint32(0, metaBytes.length, true); 
-        // 2) JSON 데이터 쓰기
-        uint8View.set(metaBytes, 4);
-        // 3) 이미지 데이터 쓰기
-        uint8View.set(new Uint8Array(imageBuffer), 4 + metaBytes.length);
-
-        console.log("[웹소켓 전송] 좌표 데이터:\n", metaStr);
-        console.log(`[웹소켓 전송] 전체 크기: ${finalBuffer.byteLength} bytes (이미지: ${imageBuffer.byteLength} bytes)`);
-        
-        // 웹소켓으로 바이너리 전송!
-        sendPoseData(finalBuffer);
+        sendPoseData(imageBuffer); 
       }, 'image/jpeg', 0.8); // 화질 80% (hd)JPEG
     }
   }, 200); 
@@ -214,6 +180,9 @@ export function startCalibration() {
   
   let count = 10;
   baseBtn.innerText = `측정 중... (${count}초 남음)`;
+
+  //  백엔드에 캘리브레이션 모드로 진입하라고 텍스트 명령 전송
+  sendCommand("start_calibration");
   
   const wasTracking = isTracking;
   // 만약 교정 시작을 안 한 상태에서 캘리브레이션을 눌렀다면, 10초 동안 백엔드로 데이터를 보내기 위해 임시로 전송 루프를 켬
@@ -283,10 +252,13 @@ export function togglePostureCorrection() {
     
     if (window.setUIGlow) window.setUIGlow('idle');
     if (window.change3DPose) window.change3DPose('idle');
-    
+
+    // 백엔드에 현재 세션을 저장하고 종료하라고 알림!
+    sendCommand("stop_session");
+
     console.log("⏹️ 자세 교정 종료됨!");
     
-    // ✨ 추가: 자세 교정을 종료할 때도 창을 닫으면서 카메라를 확실하게 꺼줍니다.
+    //자세 교정을 종료할 때도 창을 닫으면서 카메라를 확실하게 꺼줍니다.
     closeCalibration();
   }
 }
