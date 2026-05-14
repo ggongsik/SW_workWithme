@@ -1,6 +1,7 @@
 # SW_workWithme
 공개SW 1조
 
+
 💻 프론트엔드 구동 방법
 VScode에서 src 폴더를 열고 index.html을 우클릭해 Open with Live Server로 실행합니다.
 
