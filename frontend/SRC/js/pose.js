@@ -3,7 +3,7 @@
 // MediaPipe를 이용한 자세 인식 및 좌표 웹소켓 전송 로직 
 // ============================================================================
 
-import { sendPoseData } from './network.js';
+import { sendPoseData, sendCommand } from './network.js';
 
 // ── 1. 상태 변수 세팅 ──
 let currentLandmarks = null;    // 현재 프레임의 랜드마크 좌표
@@ -181,11 +181,11 @@ export function startCalibration() {
   let count = 10;
   baseBtn.innerText = `측정 중... (${count}초 남음)`;
 
-  //  백엔드에 캘리브레이션 모드로 진입하라고 텍스트 명령 전송
+  // 백엔드에 캘리브레이션 모드로 진입하라고 텍스트 명령 전송
   sendCommand("start_calibration");
   
   const wasTracking = isTracking;
-  // 만약 교정 시작을 안 한 상태에서 캘리브레이션을 눌렀다면, 10초 동안 백엔드로 데이터를 보내기 위해 임시로 전송 루프를 켬
+  // 교정 시작을 안 한 상태라면 임시로 전송 루프 켜기
   if (!wasTracking) {
     startPostureTracking();
   }
@@ -198,6 +198,9 @@ export function startCalibration() {
       clearInterval(calibTimer);
       
       baselineLandmarks = JSON.parse(JSON.stringify(currentLandmarks));
+      
+      // 10초 타이머 종료 시 백엔드 상태를 모니터링으로 전환
+      sendCommand("stop_calibration");
       
       baseBtn.innerText = "측정 완료! ✓";
       baseBtn.style.background = "rgba(0, 255, 127, 0.2)";
