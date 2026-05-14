@@ -1,0 +1,1362 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VRM Pose Demo</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+KR:wght@300;400;700&display=swap');
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #0d0d0f;
+      --surface: #16161a;
+      --border: #2a2a32;
+      --idle-color: #4ade80;
+      --warn-color: #fb923c;
+      --alert-color: #f87171;
+      --text: #e8e8f0;
+      --muted: #6b6b80;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Noto Sans KR', sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .logo {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+    }
+
+    .logo span {
+      color: var(--text);
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--idle-color);
+      box-shadow: 0 0 7px var(--idle-color);
+      transition: all 0.4s;
+      margin-left: auto;
+    }
+
+    .status-label {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .pip-toggle {
+      margin-left: 8px;
+      padding: 5px 12px;
+      font-size: 10px;
+      cursor: pointer;
+      background: linear-gradient(135deg, #1DB954 0%, #1ed760 100%);
+      border: none;
+      color: #fff;
+      border-radius: 20px;
+      font-family: 'Space Mono', monospace;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      transition: all 0.3s;
+      box-shadow: 0 0 12px rgba(29, 185, 84, 0.3);
+    }
+
+    .pip-toggle:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 20px rgba(29, 185, 84, 0.5);
+    }
+
+    /* YouTube 섹션 */
+    .yt-section {
+      padding: 0 14px 10px;
+    }
+
+    .yt-input-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .yt-url-input {
+      flex: 1;
+      background: #0a0a0d;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 10px;
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .yt-url-input:focus {
+      border-color: #1DB954;
+    }
+
+    .yt-load-btn {
+      background: #1DB954;
+      border: none;
+      border-radius: 8px;
+      padding: 7px 14px;
+      color: #fff;
+      font-size: 10px;
+      cursor: pointer;
+      font-weight: 700;
+      font-family: 'Space Mono', monospace;
+      transition: all 0.2s;
+    }
+
+    .yt-load-btn:hover {
+      background: #1ed760;
+    }
+
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      overflow: hidden;
+    }
+
+    .canvas-wrap {
+      position: relative;
+      background: var(--surface);
+      overflow: hidden;
+    }
+
+    canvas {
+      width: 100% !important;
+      height: 100% !important;
+      display: block;
+    }
+
+    .canvas-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .loading-text {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .loading-bar {
+      width: 130px;
+      height: 2px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .loading-bar-fill {
+      height: 100%;
+      background: var(--idle-color);
+      animation: loading 2s ease-in-out infinite;
+    }
+
+    @keyframes loading {
+      0% {
+        width: 0%;
+        margin-left: 0%
+      }
+
+      50% {
+        width: 60%
+      }
+
+      100% {
+        width: 0%;
+        margin-left: 100%
+      }
+    }
+
+    /* 패널 */
+    .panel {
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel-scroll {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .panel-section {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .pl {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    /* 포즈 버튼 */
+    .pose-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .pose-btn {
+      width: 100%;
+      padding: 9px 12px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--text);
+      font-family: 'Noto Sans KR', sans-serif;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      transition: all 0.2s;
+      text-align: left;
+    }
+
+    .pose-btn:hover {
+      background: #1e1e24;
+    }
+
+    .pose-btn.active {
+      border-color: var(--bc);
+      background: color-mix(in srgb, var(--bc) 8%, transparent);
+    }
+
+    .pose-btn .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--bc);
+      box-shadow: 0 0 5px var(--bc);
+      flex-shrink: 0;
+    }
+
+    .pose-btn .bn {
+      font-weight: 700;
+      font-size: 11px;
+    }
+
+    .pose-btn .bd {
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .pose-btn[data-pose="idle"] {
+      --bc: var(--idle-color);
+    }
+
+    .pose-btn[data-pose="warn"] {
+      --bc: var(--warn-color);
+    }
+
+    .pose-btn[data-pose="alert"] {
+      --bc: var(--alert-color);
+    }
+
+    /* 탭 */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+
+    .tab {
+      flex: 1;
+      min-width: 0;
+      padding: 5px 4px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--muted);
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .tab.active {
+      border-color: #7dd3fc;
+      color: #7dd3fc;
+      background: color-mix(in srgb, #7dd3fc 8%, transparent);
+    }
+
+    /* 슬라이더 */
+    .cg {
+      display: grid;
+      grid-template-columns: 28px 1fr 48px;
+      align-items: center;
+      gap: 4px 6px;
+    }
+
+    .cl {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      color: var(--muted);
+    }
+
+    .cv {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      color: var(--text);
+      text-align: right;
+    }
+
+    input[type=range] {
+      width: 100%;
+      height: 3px;
+      accent-color: #7dd3fc;
+      cursor: pointer;
+    }
+
+    /* 본 선택 */
+    select {
+      width: 100%;
+      background: #0a0a0d;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      padding: 6px 8px;
+      margin-bottom: 8px;
+    }
+
+    /* 수치 출력 */
+    .tout {
+      background: #0a0a0d;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 10px;
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      line-height: 1.9;
+      white-space: pre;
+    }
+
+    .ok {
+      color: #c084fc;
+    }
+
+    .ov {
+      color: #86efac;
+    }
+
+    .ol {
+      color: var(--muted);
+      font-size: 8px;
+    }
+
+    /* 버튼들 */
+    .btn-row {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .sm-btn {
+      flex: 1;
+      padding: 6px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--muted);
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+    }
+
+    .sm-btn:hover {
+      border-color: #7dd3fc;
+      color: #7dd3fc;
+    }
+
+    .sm-btn.green:hover {
+      border-color: var(--idle-color);
+      color: var(--idle-color);
+    }
+
+    /* 코드블록 */
+    .cb {
+      background: #0a0a0d;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 10px;
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      color: #7dd3fc;
+      line-height: 1.7;
+      overflow-x: auto;
+      max-height: 120px;
+      overflow-y: auto;
+      white-space: pre;
+    }
+
+    .cc {
+      color: var(--muted);
+    }
+
+    .ck {
+      color: #c084fc;
+    }
+
+    .cval {
+      color: #86efac;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="logo">WORK WITH <span>자세교정</span></div>
+    <div class="status-label" id="statusLabel">IDLE</div>
+    <div class="status-dot" id="statusDot"></div>
+    <button class="pip-toggle" onclick="togglePIP()">PiP 모드</button>
+  </header>
+
+  <!-- YouTube 숨김 플레이어 (메인 문서) — 120x80 최소 크기: Chrome이 너무 작은 iframe을 쓰로틀링하는 것을 방지 -->
+  <div id="yt-player-host"
+    style="position:absolute;width:120px;height:80px;overflow:hidden;opacity:0;pointer-events:none;z-index:-1;"></div>
+
+  <main>
+    <div class="canvas-wrap">
+      <canvas id="canvas"></canvas>
+      <div class="canvas-overlay" id="overlay">
+        <div class="loading-text" id="loadingText">로딩 중...</div>
+        <div class="loading-bar">
+          <div class="loading-bar-fill"></div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-scroll">
+
+        <!-- 포즈 전환 -->
+        <div class="panel-section">
+          <div class="pl">포즈 전환</div>
+          <div class="pose-buttons">
+            <button class="pose-btn active" data-pose="idle" onclick="setPose('idle')">
+              <div class="dot"></div>
+              <div>
+                <div class="bn">IDLE — 평상시</div>
+                <div class="bd">앉은 자세, 정면</div>
+              </div>
+            </button>
+            <button class="pose-btn" data-pose="warn" onclick="setPose('warn')">
+              <div class="dot"></div>
+              <div>
+                <div class="bn">WARN — 경고 1단계</div>
+                <div class="bd">고개 돌림, 걱정</div>
+              </div>
+            </button>
+            <button class="pose-btn" data-pose="alert" onclick="setPose('alert')">
+              <div class="dot"></div>
+              <div>
+                <div class="bn">ALERT — 경고 2단계</div>
+                <div class="bd">손가락질, 화남</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- YouTube 재생 -->
+        <div class="panel-section">
+          <div class="pl">YouTube 재생</div>
+          <div class="yt-input-row">
+            <input class="yt-url-input" id="ytUrl" placeholder="YouTube URL 붙여넣기..." />
+            <button class="yt-load-btn" id="ytLoadBtn">▶ PiP에서 재생</button>
+          </div>
+        </div>
+
+        <!-- 오브젝트 이동/회전 -->
+        <div class="panel-section">
+          <div class="pl">오브젝트 Transform</div>
+          <div class="tabs">
+            <button class="tab active" onclick="selectTarget('vrm')">캐릭터</button>
+            <button class="tab" onclick="selectTarget('map')">맵</button>
+            <button class="tab" onclick="selectTarget('camera')">카메라</button>
+          </div>
+          <div class="pl" style="margin-top:4px">Position</div>
+          <div class="cg">
+            <span class="cl">X</span><input type="range" id="posX" min="-20" max="20" step="0.01" value="0"
+              oninput="updateTransform()"><span class="cv" id="posXv">0.00</span>
+            <span class="cl">Y</span><input type="range" id="posY" min="-10" max="10" step="0.01" value="0"
+              oninput="updateTransform()"><span class="cv" id="posYv">0.00</span>
+            <span class="cl">Z</span><input type="range" id="posZ" min="-20" max="20" step="0.01" value="0"
+              oninput="updateTransform()"><span class="cv" id="posZv">0.00</span>
+          </div>
+          <div class="pl" style="margin-top:8px">Rotation (도)</div>
+          <div class="cg">
+            <span class="cl">X</span><input type="range" id="rotX" min="-180" max="180" step="1" value="0"
+              oninput="updateTransform()"><span class="cv" id="rotXv">0°</span>
+            <span class="cl">Y</span><input type="range" id="rotY" min="-180" max="180" step="1" value="0"
+              oninput="updateTransform()"><span class="cv" id="rotYv">0°</span>
+            <span class="cl">Z</span><input type="range" id="rotZ" min="-180" max="180" step="1" value="0"
+              oninput="updateTransform()"><span class="cv" id="rotZv">0°</span>
+          </div>
+          <div class="pl" style="margin-top:8px">Scale</div>
+          <div class="cg">
+            <span class="cl">S</span><input type="range" id="scale" min="0.01" max="10" step="0.01" value="1"
+              oninput="updateTransform()"><span class="cv" id="scalev">1.00</span>
+          </div>
+        </div>
+
+        <!-- 본 직접 조작 -->
+        <div class="panel-section">
+          <div class="pl">본(Bone) 직접 조작</div>
+          <select id="boneSelect" onchange="onBoneChange()">
+            <option value="">— 본 선택 —</option>
+            <option>hips</option>
+            <option>spine</option>
+            <option>chest</option>
+            <option>upperChest</option>
+            <option>neck</option>
+            <option>head</option>
+            <option>leftUpperArm</option>
+            <option>leftLowerArm</option>
+            <option>leftHand</option>
+            <option>rightUpperArm</option>
+            <option>rightLowerArm</option>
+            <option>rightHand</option>
+            <option>leftUpperLeg</option>
+            <option>leftLowerLeg</option>
+            <option>leftFoot</option>
+            <option>rightUpperLeg</option>
+            <option>rightLowerLeg</option>
+            <option>rightFoot</option>
+          </select>
+          <div class="cg">
+            <span class="cl">X</span><input type="range" id="boneX" min="-3.14" max="3.14" step="0.01" value="0"
+              oninput="updateBone()"><span class="cv" id="boneXv">0.00</span>
+            <span class="cl">Y</span><input type="range" id="boneY" min="-3.14" max="3.14" step="0.01" value="0"
+              oninput="updateBone()"><span class="cv" id="boneYv">0.00</span>
+            <span class="cl">Z</span><input type="range" id="boneZ" min="-3.14" max="3.14" step="0.01" value="0"
+              oninput="updateBone()"><span class="cv" id="boneZv">0.00</span>
+          </div>
+          <div class="btn-row">
+            <button class="sm-btn" onclick="resetBone()">리셋</button>
+            <button class="sm-btn green" onclick="saveBoneToPose()">현재 포즈에 저장</button>
+          </div>
+        </div>
+
+        <!-- 수치 출력 -->
+        <div class="panel-section">
+          <div class="pl">현재 수치</div>
+          <div class="tout" id="transformOut"></div>
+          <div class="btn-row">
+            <button class="sm-btn" onclick="copyTransform()">📋 Transform 복사</button>
+            <button class="sm-btn green" onclick="saveCameraView()">📷 카메라 저장</button>
+          </div>
+        </div>
+
+        <!-- 포즈 코드 -->
+        <div class="panel-section">
+          <div class="pl">현재 포즈 본 값</div>
+          <div class="cb" id="codeHint"></div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/",
+    "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3.1.2/lib/three-vrm.module.js"
+  }
+}
+</script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
+
+    const VRM_PATH = './HatsuneMikuNT.vrm';
+    const MAP_PATH = './lofi_room.glb';
+
+    // ── 포즈 정의 ──
+    // 앉은 자세: upperLeg X 음수(-) = 허벅지 앞으로, lowerLeg X 양수(+) = 종아리 뒤로 접힘
+    const POSES = {
+      idle: {
+        label: 'IDLE - 작업 중', color: '#4ade80', expression: 'neutral',
+        bones: {
+          leftUpperLeg: new THREE.Euler(1.40, 0.00, 0.00),
+          leftLowerLeg: new THREE.Euler(-1.50, 0.00, 0.00),
+          rightUpperLeg: new THREE.Euler(1.40, 0.00, 0.00),
+          rightLowerLeg: new THREE.Euler(-1.50, 0.00, 0.00),
+          spine: new THREE.Euler(0.05, 0.00, 0.00),
+          chest: new THREE.Euler(0.02, 0.00, 0.00),
+          neck: new THREE.Euler(0.05, 0.00, 0.00),
+          head: new THREE.Euler(0.05, 0.00, 0.00),
+          leftUpperArm: new THREE.Euler(0.00, 0.00, 1.20),
+          leftLowerArm: new THREE.Euler(0.00, -1.42, 0.00),
+          leftHand: new THREE.Euler(0.00, 0.00, 0.00),
+          rightUpperArm: new THREE.Euler(0.00, 0.00, -1.20),
+          rightLowerArm: new THREE.Euler(0.00, 1.48, 0.00),
+          rightHand: new THREE.Euler(0.00, 0.00, 0.00),
+        }
+      },
+      warn: {
+        label: 'WARN - 걱정/주시', color: '#fb923c', expression: 'sad',
+        bones: {
+          leftUpperLeg: new THREE.Euler(1.40, 0.00, 0.00),
+          leftLowerLeg: new THREE.Euler(-1.50, 0.00, 0.00),
+          rightUpperLeg: new THREE.Euler(1.40, 0.00, 0.00),
+          rightLowerLeg: new THREE.Euler(-1.50, 0.00, 0.00),
+          spine: new THREE.Euler(0.15, 0.00, 0.00),
+          chest: new THREE.Euler(0.10, 0.00, 0.00),
+          neck: new THREE.Euler(-0.13, -0.91, 0.11),
+          head: new THREE.Euler(-0.15, 0.00, 0.00),
+          leftUpperArm: new THREE.Euler(0.20, 0.00, 1.30),
+          leftLowerArm: new THREE.Euler(0.00, -1.04, 0.00),
+          rightUpperArm: new THREE.Euler(0.20, 0.00, -1.30),
+          rightLowerArm: new THREE.Euler(0.00, 1.13, 0.00),
+        }
+      },
+      alert: {
+        label: 'ALERT - 손가락질', color: '#f87171', expression: 'angry',
+        bones: {
+          leftUpperLeg: new THREE.Euler(1.40, 0.00, 0.00),
+          leftLowerLeg: new THREE.Euler(-1.50, 0.00, 0.00),
+          rightUpperLeg: new THREE.Euler(1.40, 0.00, 0.00),
+          rightLowerLeg: new THREE.Euler(-1.50, 0.00, 0.00),
+          spine: new THREE.Euler(-0.05, 0.00, 0.00),
+          chest: new THREE.Euler(-0.05, 0.00, 0.00),
+          neck: new THREE.Euler(-0.13, -1.08, -0.05),
+          head: new THREE.Euler(0.00, 0.00, 0.00),
+          leftUpperArm: new THREE.Euler(0.58, 0.09, 0.55),
+          leftLowerArm: new THREE.Euler(0.02, -2.87, 0.49),
+          leftHand: new THREE.Euler(1.52, 0.00, 0.00),
+          rightUpperArm: new THREE.Euler(0.91, 0.04, -0.29),
+          rightLowerArm: new THREE.Euler(-0.24, 0.60, 0.27),
+          rightHand: new THREE.Euler(0.24, -0.20, -0.11),
+          // ALERT 포즈 객체 안의 bones에 추가 (오른손 손가락질)
+          // 검지(Index)는 펴고(0), 나머지 손가락(Thumb, Middle, Ring, Little)은 안쪽으로 굽힘
+          rightThumbProximal: new THREE.Euler(0, 0, -0.5),
+          rightThumbIntermediate: new THREE.Euler(0, 0, -0.5),
+          rightThumbDistal: new THREE.Euler(0, 0, -0.5),
+
+          rightMiddleProximal: new THREE.Euler(0, 0, -1.0),
+          rightMiddleIntermediate: new THREE.Euler(0, 0, -1.0),
+          rightMiddleDistal: new THREE.Euler(0, 0, -1.0),
+
+          rightRingProximal: new THREE.Euler(0, 0, -1.0),
+          rightRingIntermediate: new THREE.Euler(0, 0, -1.0),
+          rightRingDistal: new THREE.Euler(0, 0, -1.0),
+
+          rightLittleProximal: new THREE.Euler(0, 0, -1.0),
+          rightLittleIntermediate: new THREE.Euler(0, 0, -1.0),
+          rightLittleDistal: new THREE.Euler(0, 0, -1.0),
+        }
+      }
+    };
+
+    // ── Three.js 세팅 ──
+    const canvas = document.getElementById('canvas');
+    const wrap = canvas.parentElement;
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+    renderer.setPixelRatio(devicePixelRatio);
+    renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.shadowMap.enabled = true;
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(40, wrap.clientWidth / wrap.clientHeight, 0.1, 100);
+
+    // 기존 savedCam 변수를 튜닝하신 값으로 교체합니다.
+    let savedCam = {
+      px: 7.774, py: 5.086, pz: 5.825,
+      tx: 4.617, ty: 4.179, tz: 1.410
+    };
+    camera.position.set(savedCam.px, savedCam.py, savedCam.pz);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(savedCam.tx, savedCam.ty, savedCam.tz);
+    // ... (이전에 알려드린 유니티 스타일 카메라 세팅 유지)
+
+    // ── 유니티 스타일 핵심 세팅 ──
+
+    // 1. 패닝(우클릭)을 바닥 기준이 아닌 '화면(Screen) 평면' 기준으로 변경 (가장 중요!)
+    controls.screenSpacePanning = true;
+
+    // 2. 마우스 버튼 매핑 (표준 3D 뷰어 조작)
+    controls.mouseButtons = {
+      LEFT: THREE.MOUSE.ROTATE, // 좌클릭: 타겟 중심 회전 (Orbit)
+      MIDDLE: THREE.MOUSE.DOLLY, // 휠클릭: 줌인/줌아웃
+      RIGHT: THREE.MOUSE.PAN // 우클릭: 화면 상하좌우 이동 (Pan)
+    };
+
+    // 3. 조작감(관성) 설정
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05; // 너무 휙휙 미끄러지지 않도록 마찰력 부여
+
+    // 4. 회전 및 이동 감도 조절 (유니티와 비슷하게 약간 묵직하게)
+    controls.rotateSpeed = 0.8;
+    controls.panSpeed = 0.9;
+    controls.zoomSpeed = 1.2;
+
+    // 5. 키보드 이동 지원 (선택사항)
+    // 방향키를 누르면 우클릭 드래그처럼 패닝 이동을 지원합니다.
+    controls.listenToKeyEvents(window);
+
+    // 제한 범위
+    controls.minDistance = 0.1;
+    controls.maxDistance = 50;
+
+    controls.update();
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+    const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+    dir.position.set(2, 4, 2);
+    dir.castShadow = true;
+    scene.add(dir);
+
+    new ResizeObserver(() => {
+      renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+      camera.aspect = wrap.clientWidth / wrap.clientHeight;
+      camera.updateProjectionMatrix();
+    }).observe(wrap);
+
+    // ── 로드 ──
+    let vrm = null, vrmRoot = null, mapRoot = null;
+    let loadedCount = 0;
+    const loader = new GLTFLoader();
+    loader.register(p => new VRMLoaderPlugin(p));
+
+    function tryHide() {
+      if (++loadedCount >= 2) document.getElementById('overlay').style.display = 'none';
+      updateTransformOut();
+    }
+
+    loader.load(VRM_PATH,
+      (gltf) => {
+        vrm = gltf.userData.vrm;
+        VRMUtils.rotateVRM0(vrm);
+        vrmRoot = vrm.scene;
+
+        // 튜닝하신 캐릭터 위치, 회전, 스케일 적용
+        vrmRoot.position.set(4.300, -2.330, 0.470);
+        vrmRoot.rotation.set(0.087, -1.484, 0.070);
+        vrmRoot.scale.setScalar(5.000);
+
+        scene.add(vrmRoot);
+        applyPose('idle');
+        tryHide();
+        syncSlidersFromObject();
+      },
+      (p) => { document.getElementById('loadingText').textContent = 'VRM ' + (p.loaded / p.total * 100 | 0) + '%'; },
+      (e) => { document.getElementById('loadingText').textContent = 'VRM 로드 실패'; console.error(e); tryHide(); }
+    );
+
+    loader.load(MAP_PATH,
+      (gltf) => {
+        mapRoot = gltf.scene;
+        mapRoot.position.set(0.000, 0.000, 0.000);
+        mapRoot.rotation.set(0.000, 0.000, 0.000);
+        mapRoot.scale.setScalar(1.000);
+        mapRoot.traverse(n => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; } });
+        scene.add(mapRoot);
+        tryHide();
+      },
+      (p) => { document.getElementById('loadingText').textContent = '맵 ' + (p.loaded / p.total * 100 | 0) + '%'; },
+      (e) => { document.getElementById('loadingText').textContent = '맵 로드 실패'; console.error(e); tryHide(); }
+    );
+
+    // ── 절차적 애니메이션 시스템 ──
+    let targetPose = {};
+    let targetPoseEntries = []; // 캐싱: 매 프레임 Object.entries() 호출 방지
+    let breathTime = 0;
+    const LERP_SPEED = 4.0;
+
+    function updateProceduralAnimation(delta) {
+      if (!vrm || !targetPoseEntries.length) return;
+      for (let i = 0; i < targetPoseEntries.length; i++) {
+        const [boneName, tgt] = targetPoseEntries[i];
+        const bone = vrm.humanoid.getNormalizedBoneNode(boneName);
+        if (!bone) continue;
+        bone.rotation.x += (tgt.x - bone.rotation.x) * LERP_SPEED * delta;
+        bone.rotation.y += (tgt.y - bone.rotation.y) * LERP_SPEED * delta;
+        bone.rotation.z += (tgt.z - bone.rotation.z) * LERP_SPEED * delta;
+      }
+    }
+
+    function updateBreathing(delta) {
+      if (!vrm) return;
+      breathTime += delta;
+      const chest = vrm.humanoid.getNormalizedBoneNode('chest');
+      if (chest) chest.rotation.x += Math.sin(breathTime * 1.5) * 0.004;
+      const spine = vrm.humanoid.getNormalizedBoneNode('spine');
+      if (spine) spine.rotation.x += Math.sin(breathTime * 1.2 + 0.5) * 0.002;
+    }
+
+    // ── 렌더 루프 ──
+    const clock = new THREE.Clock();
+    let isPipActive = false;
+    let pipWindow = null;
+
+    // updateTransformOut은 DOM innerHTML 조작이라 매 프레임 호출하면 성능 저하
+    // 500ms 간격으로 제한 (60fps→2fps DOM 업데이트)
+    let lastTransformUpdate = 0;
+
+    (function animate() {
+      requestAnimationFrame(animate);
+      const delta = clock.getDelta();
+      controls.update();
+      if (vrm) {
+        updateProceduralAnimation(delta);
+        updateBreathing(delta);
+        vrm.update(delta);
+      }
+      renderer.render(scene, camera);
+      // DOM 업데이트 쓰로틀링
+      const now = performance.now();
+      if (now - lastTransformUpdate > 500) {
+        lastTransformUpdate = now;
+        updateTransformOut();
+      }
+    })();
+
+    // ── 포즈 적용 (절차적 — 목표만 설정) ──
+    let currentPoseName = 'idle';
+    function applyPose(name) {
+      if (!vrm) return;
+      currentPoseName = name;
+      const pose = POSES[name];
+      // 목표 포즈를 설정 (즉시 적용 X, 매 프레임 보간)
+      targetPose = {};
+      for (const [bname, euler] of Object.entries(pose.bones)) {
+        targetPose[bname] = { x: euler.x, y: euler.y, z: euler.z };
+      }
+      targetPoseEntries = Object.entries(targetPose); // 캐싱
+      if (vrm.expressionManager) {
+        ['happy', 'sad', 'angry', 'surprised', 'neutral'].forEach(e => { try { vrm.expressionManager.setValue(e, 0); } catch (_) { } });
+        try { vrm.expressionManager.setValue(pose.expression, 1.0); } catch (_) { }
+      }
+    }
+
+    // ── 오브젝트 Transform 컨트롤 ──
+    let currentTarget = 'vrm';
+
+    window.selectTarget = function (t) {
+      currentTarget = t;
+      const lbl = { vrm: '캐릭터', map: '맵', camera: '카메라' };
+      document.querySelectorAll('.tab').forEach(el => {
+        const targets = ['vrm', 'map', 'camera'];
+        el.classList.toggle('active', el.textContent.trim() === lbl[t]);
+      });
+      syncSlidersFromObject();
+    };
+
+    function getObj() {
+      if (currentTarget === 'vrm') return vrmRoot;
+      if (currentTarget === 'map') return mapRoot;
+      if (currentTarget === 'camera') return camera;
+      return null;
+    }
+
+    function syncSlidersFromObject() {
+      const obj = getObj();
+      if (!obj) return;
+      document.getElementById('posX').value = obj.position.x;
+      document.getElementById('posY').value = obj.position.y;
+      document.getElementById('posZ').value = obj.position.z;
+      document.getElementById('rotX').value = THREE.MathUtils.radToDeg(obj.rotation.x);
+      document.getElementById('rotY').value = THREE.MathUtils.radToDeg(obj.rotation.y);
+      document.getElementById('rotZ').value = THREE.MathUtils.radToDeg(obj.rotation.z);
+      document.getElementById('scale').value = currentTarget !== 'camera' ? obj.scale.x : 1;
+      updateLabels();
+    }
+
+    window.updateTransform = function () {
+      const obj = getObj();
+      if (!obj) return;
+      const px = +document.getElementById('posX').value;
+      const py = +document.getElementById('posY').value;
+      const pz = +document.getElementById('posZ').value;
+      const rx = +document.getElementById('rotX').value;
+      const ry = +document.getElementById('rotY').value;
+      const rz = +document.getElementById('rotZ').value;
+      const s = +document.getElementById('scale').value;
+      obj.position.set(px, py, pz);
+      obj.rotation.set(THREE.MathUtils.degToRad(rx), THREE.MathUtils.degToRad(ry), THREE.MathUtils.degToRad(rz));
+      if (currentTarget !== 'camera') obj.scale.setScalar(s);
+      updateLabels();
+    };
+
+    function updateLabels() {
+      document.getElementById('posXv').textContent = (+document.getElementById('posX').value).toFixed(2);
+      document.getElementById('posYv').textContent = (+document.getElementById('posY').value).toFixed(2);
+      document.getElementById('posZv').textContent = (+document.getElementById('posZ').value).toFixed(2);
+      document.getElementById('rotXv').textContent = (+document.getElementById('rotX').value).toFixed(0) + '°';
+      document.getElementById('rotYv').textContent = (+document.getElementById('rotY').value).toFixed(0) + '°';
+      document.getElementById('rotZv').textContent = (+document.getElementById('rotZ').value).toFixed(0) + '°';
+      document.getElementById('scalev').textContent = (+document.getElementById('scale').value).toFixed(2);
+    }
+
+    // ── 본 직접 조작 ──
+    window.onBoneChange = function () {
+      if (!vrm) return;
+      const name = document.getElementById('boneSelect').value;
+      if (!name) return;
+      const bone = vrm.humanoid.getNormalizedBoneNode(name);
+      if (!bone) return;
+      document.getElementById('boneX').value = bone.rotation.x;
+      document.getElementById('boneY').value = bone.rotation.y;
+      document.getElementById('boneZ').value = bone.rotation.z;
+      document.getElementById('boneXv').textContent = bone.rotation.x.toFixed(2);
+      document.getElementById('boneYv').textContent = bone.rotation.y.toFixed(2);
+      document.getElementById('boneZv').textContent = bone.rotation.z.toFixed(2);
+    };
+
+    window.updateBone = function () {
+      if (!vrm) return;
+      const name = document.getElementById('boneSelect').value;
+      if (!name) return;
+      const bone = vrm.humanoid.getNormalizedBoneNode(name);
+      if (!bone) return;
+      const x = +document.getElementById('boneX').value;
+      const y = +document.getElementById('boneY').value;
+      const z = +document.getElementById('boneZ').value;
+      bone.rotation.set(x, y, z);
+      document.getElementById('boneXv').textContent = x.toFixed(2);
+      document.getElementById('boneYv').textContent = y.toFixed(2);
+      document.getElementById('boneZv').textContent = z.toFixed(2);
+      // 포즈 정의도 실시간 반영
+      if (POSES[currentPoseName] && POSES[currentPoseName].bones[name]) {
+        POSES[currentPoseName].bones[name].set(x, y, z);
+      }
+      updateCodeHint(currentPoseName);
+    };
+
+    window.resetBone = function () {
+      document.getElementById('boneX').value = 0;
+      document.getElementById('boneY').value = 0;
+      document.getElementById('boneZ').value = 0;
+      window.updateBone();
+    };
+
+    window.saveBoneToPose = function () {
+      // 현재 포즈의 모든 본 값을 VRM 실제 값으로 동기화
+      if (!vrm) return;
+      const boneNames = Object.keys(POSES[currentPoseName].bones);
+      boneNames.forEach(name => {
+        const bone = vrm.humanoid.getNormalizedBoneNode(name);
+        if (bone) POSES[currentPoseName].bones[name].set(bone.rotation.x, bone.rotation.y, bone.rotation.z);
+      });
+      updateCodeHint(currentPoseName);
+      const btn = document.querySelector('.sm-btn.green');
+      btn.textContent = '✅ 저장됨!';
+      setTimeout(() => { btn.textContent = '현재 포즈에 저장'; }, 1500);
+    };
+
+    // ── 카메라 저장 ──
+    window.saveCameraView = function () {
+      savedCam = {
+        px: camera.position.x, py: camera.position.y, pz: camera.position.z,
+        tx: controls.target.x, ty: controls.target.y, tz: controls.target.z
+      };
+      const btn = document.querySelectorAll('.sm-btn')[1];
+      btn.textContent = '✅ 저장됨!';
+      setTimeout(() => { btn.textContent = '📷 카메라 저장'; }, 1500);
+    };
+
+    // ── 수치 출력 ──
+    function f(v) { return v.toFixed(3); }
+    function fd(v) { return THREE.MathUtils.radToDeg(v).toFixed(1); }
+
+    function updateTransformOut() {
+      const lines = [];
+      if (vrmRoot) {
+        const p = vrmRoot.position, r = vrmRoot.rotation, s = vrmRoot.scale;
+        lines.push('<span class="ol">── 캐릭터 ──</span>');
+        lines.push('<span class="ok">position</span>: <span class="ov">(' + f(p.x) + ', ' + f(p.y) + ', ' + f(p.z) + ')</span>');
+        lines.push('<span class="ok">rotation</span>: <span class="ov">(' + fd(r.x) + '°, ' + fd(r.y) + '°, ' + fd(r.z) + '°)</span>');
+        lines.push('<span class="ok">scale   </span>: <span class="ov">' + f(s.x) + '</span>');
+      }
+      if (mapRoot) {
+        const p = mapRoot.position, r = mapRoot.rotation, s = mapRoot.scale;
+        lines.push('<span class="ol">── 맵 ──</span>');
+        lines.push('<span class="ok">position</span>: <span class="ov">(' + f(p.x) + ', ' + f(p.y) + ', ' + f(p.z) + ')</span>');
+        lines.push('<span class="ok">rotation</span>: <span class="ov">(' + fd(r.x) + '°, ' + fd(r.y) + '°, ' + fd(r.z) + '°)</span>');
+        lines.push('<span class="ok">scale   </span>: <span class="ov">' + f(s.x) + '</span>');
+      }
+      lines.push('<span class="ol">── 카메라 ──</span>');
+      lines.push('<span class="ok">position</span>: <span class="ov">(' + f(camera.position.x) + ', ' + f(camera.position.y) + ', ' + f(camera.position.z) + ')</span>');
+      lines.push('<span class="ok">target  </span>: <span class="ov">(' + f(controls.target.x) + ', ' + f(controls.target.y) + ', ' + f(controls.target.z) + ')</span>');
+      document.getElementById('transformOut').innerHTML = lines.join('\n');
+    }
+
+    window.copyTransform = function () {
+      const lines = [];
+      if (vrmRoot) {
+        const p = vrmRoot.position, r = vrmRoot.rotation, s = vrmRoot.scale;
+        lines.push('// 캐릭터\nvrmRoot.position.set(' + f(p.x) + ', ' + f(p.y) + ', ' + f(p.z) + ');\nvrmRoot.rotation.set(' + f(r.x) + ', ' + f(r.y) + ', ' + f(r.z) + ');\nvrmRoot.scale.setScalar(' + f(s.x) + ');');
+      }
+      if (mapRoot) {
+        const p = mapRoot.position, r = mapRoot.rotation, s = mapRoot.scale;
+        lines.push('// 맵\nmapRoot.position.set(' + f(p.x) + ', ' + f(p.y) + ', ' + f(p.z) + ');\nmapRoot.rotation.set(' + f(r.x) + ', ' + f(r.y) + ', ' + f(r.z) + ');\nmapRoot.scale.setScalar(' + f(s.x) + ');');
+      }
+      lines.push('// 카메라\ncamera.position.set(' + f(camera.position.x) + ', ' + f(camera.position.y) + ', ' + f(camera.position.z) + ');\ncontrols.target.set(' + f(controls.target.x) + ', ' + f(controls.target.y) + ', ' + f(controls.target.z) + ');');
+      navigator.clipboard.writeText(lines.join('\n'));
+      const btn = document.querySelectorAll('.sm-btn')[0];
+      btn.textContent = '✅ 복사됨!';
+      setTimeout(() => { btn.textContent = '📋 Transform 복사'; }, 1500);
+    };
+
+    // ── 포즈 UI ──
+    function updateCodeHint(name) {
+      const pose = POSES[name];
+      const lines = Object.entries(pose.bones).map(([k, v]) =>
+        '<span class="cc">// ' + k + '</span>\nbone.rotation.set(<span class="cval">' + v.x.toFixed(2) + ', ' + v.y.toFixed(2) + ', ' + v.z.toFixed(2) + '</span>);'
+      ).join('\n');
+      document.getElementById('codeHint').innerHTML =
+        '<span class="cc">// "' + name + '" 포즈</span>\n<span class="ck">function</span> applyPose() {\n' + lines + '\n}';
+    }
+
+    window.setPose = function (name) {
+      applyPose(name);
+      const pose = POSES[name];
+      document.querySelectorAll('.pose-btn').forEach(b => b.classList.toggle('active', b.dataset.pose === name));
+      document.getElementById('statusDot').style.background = pose.color;
+      document.getElementById('statusDot').style.boxShadow = '0 0 7px ' + pose.color;
+      document.getElementById('statusLabel').textContent = pose.label;
+      updateCodeHint(name);
+      // 본 선택 슬라이더 동기화
+      onBoneChange();
+    };
+
+    window.setPose('idle');
+    updateLabels();
+    updateTransformOut();
+
+    // ── Document PIP (화면 속 화면) 제어 ──
+    window.togglePIP = async function () {
+      if (!('documentPictureInPicture' in window)) {
+        alert('Document PiP API를 지원하지 않는 브라우저입니다. Chrome 116+ 필요');
+        return;
+      }
+      try {
+        if (pipWindow && !pipWindow.closed) {
+          pipWindow.close();
+          pipWindow = null;
+          isPipActive = false;
+          return;
+        }
+        pipWindow = await documentPictureInPicture.requestWindow({ width: 480, height: 640 });
+        isPipActive = true;
+        // CSS 복사
+        [...document.styleSheets].forEach(sheet => {
+          try {
+            const css = [...sheet.cssRules].map(r => r.cssText).join('');
+            const s = document.createElement('style');
+            s.textContent = css;
+            pipWindow.document.head.appendChild(s);
+          } catch (e) {
+            if (sheet.href) {
+              const link = document.createElement('link');
+              link.rel = 'stylesheet'; link.href = sheet.href;
+              pipWindow.document.head.appendChild(link);
+            }
+          }
+        });
+        // PiP 전용 스타일
+        const pipStyle = document.createElement('style');
+        pipStyle.textContent = `
+      body { margin:0; background:#000; overflow:hidden; font-family:'Noto Sans KR',sans-serif; }
+      .pip-wrap { position:relative; width:100%; height:100%; }
+      .pip-canvas-container { width:100%; height:100%; }
+      .pip-canvas-container canvas { width:100%!important; height:100%!important; display:block; }
+      .pip-overlay { position:absolute; inset:0; display:flex; flex-direction:column; justify-content:flex-end; pointer-events:none; padding:12px; }
+      .pip-overlay * { pointer-events:auto; }
+      .pip-controls { background:rgba(0,0,0,0.45); backdrop-filter:blur(12px); border-radius:12px; padding:10px 14px; display:flex; align-items:center; gap:10px; }
+      .pip-title { color:#fff; font-size:12px; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .pip-btn { background:none; border:none; color:#fff; font-size:18px; cursor:pointer; padding:4px; opacity:0.85; transition:opacity 0.2s; }
+      .pip-btn:hover { opacity:1; }
+      .pip-input-row { display:flex; gap:6px; margin-bottom:8px; }
+      .pip-url-input { flex:1; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); border-radius:8px; padding:6px 10px; color:#fff; font-size:11px; outline:none; }
+      .pip-url-input::placeholder { color:rgba(255,255,255,0.4); }
+      .pip-load-btn { background:#1DB954; border:none; border-radius:8px; padding:6px 12px; color:#fff; font-size:11px; cursor:pointer; font-weight:700; }
+      .pip-status { position:absolute; top:10px; right:10px; display:flex; align-items:center; gap:6px; background:rgba(0,0,0,0.45); backdrop-filter:blur(8px); border-radius:20px; padding:4px 10px; }
+      .pip-status-dot { width:6px; height:6px; border-radius:50%; background:var(--idle-color); box-shadow:0 0 6px var(--idle-color); }
+      .pip-status-label { color:#fff; font-size:10px; font-family:'Space Mono',monospace; }
+      .pip-yt-hidden { position:absolute; width:1px; height:1px; overflow:hidden; opacity:0; pointer-events:none; }
+      .pip-neon { position:absolute; inset:0; pointer-events:none; border-radius:0; transition:box-shadow 0.3s; }
+    `;
+        pipWindow.document.head.appendChild(pipStyle);
+        // PiP 내부 DOM 구성
+        const wrap = pipWindow.document.createElement('div');
+        wrap.className = 'pip-wrap';
+        wrap.innerHTML = `
+      <div class="pip-canvas-container" id="pip-3d"></div>
+      <div class="pip-yt-hidden" id="pip-yt-player"></div>
+      <div class="pip-neon" id="pip-neon"></div>
+      <div class="pip-status"><div class="pip-status-dot" id="pip-dot"></div><span class="pip-status-label" id="pip-label">IDLE</span></div>
+      <div class="pip-overlay">
+        <div class="pip-input-row">
+          <input class="pip-url-input" id="pip-yt-url" placeholder="YouTube URL 붙여넣기..." />
+          <button class="pip-load-btn" id="pip-yt-load">▶ 재생</button>
+        </div>
+        <div class="pip-controls">
+          <span class="pip-title" id="pip-song-title">🎵 대기 중...</span>
+          <button class="pip-btn" id="pip-prev">⏮</button>
+          <button class="pip-btn" id="pip-play">▶</button>
+          <button class="pip-btn" id="pip-next">⏭</button>
+        </div>
+      </div>
+    `;
+        pipWindow.document.body.appendChild(wrap);
+        // PiP 내부 캔버스 (별도 렌더러)
+        setupPipRenderer(pipWindow);
+        // YouTube 로드
+        setupPipYouTube(pipWindow);
+        // 네온 테두리 업데이트
+        setupPipNeon(pipWindow);
+        // PiP 닫힘 처리
+        pipWindow.addEventListener('pagehide', () => {
+          isPipActive = false;
+          pipWindow = null;
+          if (pipRenderer) { pipRenderer.dispose(); pipRenderer = null; }
+        });
+      } catch (err) {
+        console.error('Document PiP 실패:', err);
+        isPipActive = false;
+      }
+    };
+
+    // ── PiP 내부 3D 렌더러 ──
+    let pipRenderer = null;
+    function setupPipRenderer(pw) {
+      const container = pw.document.getElementById('pip-3d');
+      const c = pw.document.createElement('canvas');
+      container.appendChild(c);
+      // antialias OFF = GPU 부하 약 30% 감소 (PiP 작은 창에서는 차이 미미)
+      pipRenderer = new THREE.WebGLRenderer({ canvas: c, alpha: true, antialias: false });
+      pipRenderer.setPixelRatio(1);
+      pipRenderer.outputColorSpace = THREE.SRGBColorSpace;
+      const resize = () => {
+        const w = container.clientWidth, h = container.clientHeight;
+        if (w && h) { pipRenderer.setSize(w, h); }
+      };
+      resize();
+      new ResizeObserver(resize).observe(container);
+      // PiP 전용 렌더 루프 (30fps 제한 — GPU 경합으로 인한 YouTube 끊김 방지)
+      const pipCam = camera.clone();
+      let lastPipFrame = 0;
+      const PIP_FPS_INTERVAL = 1000 / 30; // 30fps
+      (function pipAnimate() {
+        if (!pipRenderer || !pw || pw.closed) return;
+        pw.requestAnimationFrame(pipAnimate);
+        const now = performance.now();
+        if (now - lastPipFrame < PIP_FPS_INTERVAL) return; // 프레임 스킵
+        lastPipFrame = now;
+        pipCam.position.copy(camera.position);
+        pipCam.rotation.copy(camera.rotation);
+        pipCam.aspect = container.clientWidth / container.clientHeight;
+        pipCam.updateProjectionMatrix();
+        pipRenderer.render(scene, pipCam);
+      })();
+    }
+
+    // ── YouTube (메인 문서에서 실행) ──
+    let ytPlayer = null;
+    let ytReady = false;
+    function extractYouTubeId(url) {
+      const m = url.match(/(?:v=|\/)([a-zA-Z0-9_-]{11})|youtu\.be\/([a-zA-Z0-9_-]{11})/);
+      return m ? (m[1] || m[2]) : null;
+    }
+    // YouTube IFrame API 로드 (메인 문서)
+    const ytTag = document.createElement('script');
+    ytTag.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(ytTag);
+    window.onYouTubeIframeAPIReady = () => {
+      ytPlayer = new YT.Player('yt-player-host', {
+        height: '80', width: '120', // 최소 크기 (너무 작으면 일부 브라우저에서 버퍼링 문제)
+        playerVars: {
+          autoplay: 0,
+          controls: 0,
+          modestbranding: 1,
+          playsinline: 1,
+          disablekb: 1,       // 키보드 단축키 비활성 (리소스 절약)
+          fs: 0,              // 전체화면 버튼 비활성
+          rel: 0,             // 관련 동영상 비활성
+          iv_load_policy: 3,  // 주석 비활성 (렌더링 부하 감소)
+          origin: window.location.origin
+        },
+        events: {
+          onReady: () => { ytReady = true; console.log('YouTube Player Ready'); },
+          onStateChange: (e) => {
+            // PiP 버튼 동기화
+            if (pipWindow && !pipWindow.closed) {
+              const btn = pipWindow.document.getElementById('pip-play');
+              if (btn) btn.textContent = (e.data === YT.PlayerState.PLAYING) ? '⏸' : '▶';
+            }
+          },
+          onError: (e) => {
+            console.error('YouTube 에러:', e.data);
+            if (pipWindow && !pipWindow.closed) {
+              const el = pipWindow.document.getElementById('pip-song-title');
+              if (el) el.textContent = '❌ 재생 실패 (코드: ' + e.data + ')';
+            }
+          }
+        }
+      });
+    };
+    function loadYouTubeVideo(url) {
+      const id = extractYouTubeId(url);
+      if (!id) { console.warn('유효하지 않은 YouTube URL'); return; }
+      if (!ytPlayer || !ytReady) { console.warn('YouTube 플레이어 로딩 중...'); return; }
+      // suggestedQuality: 'small' = 오디오 위주 최적화 (비디오 해상도 최소화)
+      ytPlayer.loadVideoById({ videoId: id, suggestedQuality: 'small' });
+      // 제목 업데이트
+      setTimeout(() => {
+        try {
+          const data = ytPlayer.getVideoData();
+          const title = (data && data.title) ? '🎵 ' + data.title : '🎵 재생 중';
+          if (pipWindow && !pipWindow.closed) {
+            const el = pipWindow.document.getElementById('pip-song-title');
+            if (el) el.textContent = title;
+          }
+        } catch (e) { }
+      }, 2500);
+    }
+    function setupPipYouTube(pw) {
+      // PiP 버튼 이벤트 → 메인 문서의 ytPlayer 제어
+      pw.document.getElementById('pip-yt-load').addEventListener('click', () => {
+        const url = pw.document.getElementById('pip-yt-url').value;
+        loadYouTubeVideo(url);
+        const titleEl = pw.document.getElementById('pip-song-title');
+        if (titleEl) titleEl.textContent = '🎵 로딩 중...';
+      });
+      pw.document.getElementById('pip-play').addEventListener('click', () => {
+        if (!ytPlayer || !ytReady) return;
+        const state = ytPlayer.getPlayerState();
+        if (state === YT.PlayerState.PLAYING) ytPlayer.pauseVideo(); else ytPlayer.playVideo();
+      });
+      pw.document.getElementById('pip-prev').addEventListener('click', () => { if (ytPlayer && ytReady) ytPlayer.seekTo(0); });
+      pw.document.getElementById('pip-next').addEventListener('click', () => { if (ytPlayer && ytReady) { try { ytPlayer.nextVideo(); } catch (e) { } } });
+    }
+
+    // ── PiP 네온 테두리 (실선 + 글로우) ──
+    function setupPipNeon(pw) {
+      const neon = pw.document.getElementById('pip-neon');
+      const dot = pw.document.getElementById('pip-dot');
+      const label = pw.document.getElementById('pip-label');
+      (function neonLoop() {
+        if (!pw || pw.closed) return;
+        pw.requestAnimationFrame(neonLoop);
+        const pose = POSES[currentPoseName];
+        if (dot) { dot.style.background = pose.color; dot.style.boxShadow = '0 0 6px ' + pose.color; }
+        if (label) label.textContent = pose.label;
+        if (currentPoseName === 'idle') {
+          neon.style.border = 'none';
+          neon.style.boxShadow = 'none';
+          return;
+        }
+        const t = Date.now();
+        if (currentPoseName === 'warn') {
+          const a = 0.4 + Math.abs(Math.sin(t / 400)) * 0.6;
+          const glow = 12 + Math.abs(Math.sin(t / 400)) * 18;
+          const c = `rgba(251,146,60,${a})`;
+          neon.style.border = `2px solid ${c}`;
+          neon.style.boxShadow = `inset 0 0 ${glow}px ${c}, 0 0 ${glow}px ${c}, inset 0 0 ${glow * 2}px rgba(251,146,60,${a * 0.3})`;
+        } else if (currentPoseName === 'alert') {
+          const a = 0.6 + Math.sin(t / 150) * 0.4;
+          const glow = 20 + Math.sin(t / 150) * 20;
+          const c = `rgba(248,113,113,${a})`;
+          neon.style.border = `3px solid ${c}`;
+          neon.style.boxShadow = `inset 0 0 ${glow}px ${c}, 0 0 ${glow}px ${c}, inset 0 0 ${glow * 2}px rgba(248,113,113,${a * 0.3})`;
+        }
+      })();
+    }
+
+    // ── 백엔드 API 연동 레이어 ──
+    const API = {
+      baseUrl: '', // 백엔드 URL (설정 시 활성화)
+      async getPoseCommand() {
+        if (!this.baseUrl) return null;
+        try { const r = await fetch(this.baseUrl + '/api/pose'); return r.json(); } catch (e) { return null; }
+      },
+      async sendStatus(data) {
+        if (!this.baseUrl) return;
+        try { await fetch(this.baseUrl + '/api/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); } catch (e) { }
+      },
+      // front.html 호환: postMessage 기반 통신
+      initBridge() {
+        window.addEventListener('message', (e) => {
+          if (e.data?.type === 'SET_POSE' && POSES[e.data.pose]) window.setPose(e.data.pose);
+          if (e.data?.type === 'GET_STATUS') e.source?.postMessage({ type: 'STATUS', pose: currentPoseName, label: POSES[currentPoseName].label }, e.origin);
+        });
+      }
+    };
+    API.initBridge();
+
+    // ── 메인 패널 YouTube → 직접 재생 ──
+    document.getElementById('ytLoadBtn').addEventListener('click', async () => {
+      const url = document.getElementById('ytUrl').value;
+      if (!url) return;
+      // PiP가 안 열려있으면 먼저 열기
+      if (!pipWindow || pipWindow.closed) await window.togglePIP();
+      // 메인 문서의 YouTube 플레이어로 직접 재생
+      loadYouTubeVideo(url);
+      // PiP 제목 업데이트
+      setTimeout(() => {
+        if (pipWindow && !pipWindow.closed) {
+          const el = pipWindow.document.getElementById('pip-song-title');
+          if (el) el.textContent = '🎵 로딩 중...';
+        }
+      }, 100);
+    });
+
+  </script>
+</body>
+
+</html>
