@@ -1,0 +1,6 @@
+fastapi[standard]>=0.115
+uvicorn[standard]>=0.30
+sqlalchemy>=2.0
+aiosqlite>=0.19
+numpy>=1.26,<2.0
+Pillow>=10.0
