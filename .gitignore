@@ -1,0 +1,8 @@
+venv/
+__pycache__/
+*.pyc
+*.pth
+models/
+.DS_Store
+Depth-Anything-V2
+eof
