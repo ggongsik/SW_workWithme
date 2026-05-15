@@ -106,27 +106,6 @@ window.addEventListener('DOMContentLoaded', () => {
       panel.style.zIndex = topZ;
     });
   });
-
-  // ✨ 메인 화면 가장자리 네온 효과를 위한 CSS 및 오버레이 동적 추가
-  /*const style = document.createElement('style');
-  style.innerHTML = `
-    #glow-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 9999; }
-    @keyframes glowWarn {
-      0%, 100% { box-shadow: inset 0 0 20px rgba(251,146,60,0.3), inset 0 0 10px 12px rgba(251,146,60,0.3); }
-      50% { box-shadow: inset 0 0 40px rgba(251,146,60,0.9), inset 0 0 25px 24px rgba(251,146,60,0.9); }
-    }
-    @keyframes glowAlert {
-      0%, 100% { box-shadow: inset 0 0 30px rgba(248,113,113,0.7), inset 0 0 20px 20px rgba(248,113,113,0.7); }
-      50% { box-shadow: inset 0 0 60px rgba(248,113,113,1), inset 0 0 35px 35px rgba(248,113,113,1); }
-    }
-    .glow-warn { animation: glowWarn 2s ease-in-out infinite; }
-    .glow-alert { animation: glowAlert 0.3s ease-in-out infinite; }
-  `;
-  document.head.appendChild(style);
-  
-  const glowDiv = document.createElement('div');
-  glowDiv.id = 'glow-overlay';
-  document.body.appendChild(glowDiv);*/
 });
 
 
@@ -207,148 +186,138 @@ export function setTab(tab, el) {
 
 
 // ============================================================================
-// 🌟 4. 네온 효과 및 캔버스 기반 PiP 모드
+// 🌟 4. 네온 효과 및 Document PiP 모드
 // ============================================================================
-let isPipActive = false;
-let pipVideo = null;
-let pipCanvas = null;
-let pipCtx = null;
 
-// 외부(콘솔, 웹소켓)에서 상태를 바꿀 때 호출할 함수
+export let pipWindow = null;
+
+// ── 1. 외부(콘솔, 웹소켓)에서 상태를 바꿀 때 호출할 함수 ──
 export function setUIGlow(state) {
-  currentGlowState = state; // PiP 렌더링 루프에 상태 전달
+  currentGlowState = state; 
   
-  // 메인 화면 전체의 테두리 네온 효과도 여기서 조작할 수 있습니다!
-  // (HTML에 <div id="warning-border"></div> 같은 요소가 있다고 가정한 예시입니다)
+  // 메인 화면 전체 테두리 네온 효과 조작 (존재할 경우)
   const screenBorder = document.getElementById('warning-border'); 
   if (screenBorder) {
     if (state === 'idle') {
       screenBorder.style.boxShadow = 'none';
     } else if (state === 'warn' || state === 'caution') {
-      // 주황색 경고
       screenBorder.style.boxShadow = 'inset 0 0 50px rgba(251, 146, 60, 0.6)';
     } else if (state === 'alert') {
-      // 빨간색 위험
       screenBorder.style.boxShadow = 'inset 0 0 100px rgba(248, 113, 113, 0.9)';
     }
   }
-  
   console.log(`✨ UI 상태가 변경되었습니다: ${state}`);
 }
 
-// PiP 토글 기능
+
+// ── 2. PiP 내부 네온 테두리 애니메이션 (CSS 기반) ──
+function setupPipNeon(pw) {
+  const neon = pw.document.getElementById('pip-neon');
+  if (!neon) return;
+
+  function neonLoop() {
+    if (!pw || pw.closed) return;
+    pw.requestAnimationFrame(neonLoop);
+
+    if (currentGlowState === 'idle') {
+      neon.style.border = 'none';
+      neon.style.boxShadow = 'none';
+      return;
+    }
+
+    const t = Date.now();
+    if (currentGlowState === 'warn' || currentGlowState === 'caution') {
+      // 주황색 경고 (Warn)
+      const a = 0.4 + Math.abs(Math.sin(t / 400)) * 0.6;
+      const glow = 12 + Math.abs(Math.sin(t / 400)) * 18;
+      const c = `rgba(251,146,60,${a})`;
+      neon.style.border = `2px solid ${c}`;
+      neon.style.boxShadow = `inset 0 0 ${glow}px ${c}, 0 0 ${glow}px ${c}, inset 0 0 ${glow * 2}px rgba(251,146,60,${a * 0.3})`;
+    } else if (currentGlowState === 'alert') {
+      // 빨간색 위험 (Alert)
+      const a = 0.6 + Math.sin(t / 150) * 0.4;
+      const glow = 20 + Math.sin(t / 150) * 20;
+      const c = `rgba(248,113,113,${a})`;
+      neon.style.border = `3px solid ${c}`;
+      neon.style.boxShadow = `inset 0 0 ${glow}px ${c}, 0 0 ${glow}px ${c}, inset 0 0 ${glow * 2}px rgba(248,113,113,${a * 0.3})`;
+    }
+  }
+  neonLoop(); // 애니메이션 시작
+}
+
+
+// ── 3. Document PiP 토글 기능 ──
 export async function togglePiP() {
-  const mainCanvas = document.getElementById('bg-canvas');
-  if (!mainCanvas) {
-    alert('3D 캔버스가 렌더링되지 않았습니다.');
+  if (!('documentPictureInPicture' in window)) {
+    alert('Document PiP API를 지원하지 않는 브라우저입니다.');
     return;
   }
 
-  // HTML을 더럽히지 않도록 메모리상에서 비디오/캔버스 요소를 동적 생성[cite: 6]
-  if (!pipVideo) {
-    pipVideo = document.createElement('video');
-    pipVideo.autoplay = true;
-    pipVideo.muted = true;
-    pipVideo.playsInline = true;
-    
-    pipCanvas = document.createElement('canvas');
-    pipCtx = pipCanvas.getContext('2d');
-    
-    pipVideo.addEventListener('leavepictureinpicture', () => {
-      isPipActive = false;
-    });
-  }
-
   try {
-    if (document.pictureInPictureElement) {
-      await document.exitPictureInPicture();
-      isPipActive = false;
-    } else {
-      isPipActive = true;
-      
-      // 합성된 캔버스 화면을 스트림으로 캡처 (30fps)[cite: 6]
-      const stream = pipCanvas.captureStream(30);
-      pipVideo.srcObject = stream;
-      
-      pipVideo.onloadedmetadata = async () => {
-        await pipVideo.play();
-        await pipVideo.requestPictureInPicture();
-      };
-      
-      // PiP 렌더링 루프 시작
-      renderPipLoop(mainCanvas);
+    if (pipWindow && !pipWindow.closed) {
+      pipWindow.close();
+      return;
     }
-  } catch (error) {
-    console.error("PIP 모드 실행 실패:", error);
-    isPipActive = false;
+
+    // 창 크기 조절 (가로로 더 길게 하면 좋습니다)
+    pipWindow = await documentPictureInPicture.requestWindow({ width: 320, height: 240 });
+
+    // CSS 복사 로직 (기존 유지)
+    [...document.styleSheets].forEach(sheet => {
+      try {
+        const css = [...sheet.cssRules].map(r => r.cssText).join('');
+        const s = document.createElement('style');
+        s.textContent = css;
+        pipWindow.document.head.appendChild(s);
+      } catch (e) {
+        if (sheet.href) {
+          const link = document.createElement('link');
+          link.rel = 'stylesheet'; link.href = sheet.href;
+          pipWindow.document.head.appendChild(link);
+        }
+      }
+    });
+
+    const wrap = pipWindow.document.createElement('div');
+    wrap.className = 'pip-wrap';
+    wrap.innerHTML = `
+      <div class="pip-canvas-container" id="pip-3d" style="position: absolute; inset: 0; z-index: 0;"></div>
+      <div class="pip-neon" id="pip-neon" style="position: absolute; inset: 0; pointer-events: none; z-index: 2;"></div>
+      
+      <div class="pip-overlay" style="z-index: 3;">
+        <div class="pip-player-box" style="flex-direction: column; height: auto; gap: 4px; align-items: stretch;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div id="player-info" style="flex: 1; min-width: 0;">
+              <div id="pip-song-title">🎵 음악을 선택하세요</div>
+              <div id="pip-song-artist">대기 중...</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
+              <button class="pip-btn" id="pip-prev">⏮</button>
+              <button class="pip-btn" id="pip-play" style="font-size: 18px;">▶</button>
+              <button class="pip-btn" id="pip-next">⏭</button>
+            </div>
+          </div>
+          <div id="pip-player-progress">
+            <div id="pip-player-bar"></div>
+          </div>
+        </div>
+      </div>
+    `;
+    pipWindow.document.body.appendChild(wrap);
+
+    // 버튼 이벤트 연결
+    pipWindow.document.getElementById('pip-prev').addEventListener('click', () => window.prevTrack?.());
+    pipWindow.document.getElementById('pip-play').addEventListener('click', () => window.togglePlay?.());
+    pipWindow.document.getElementById('pip-next').addEventListener('click', () => window.nextTrack?.());
+
+    setupPipNeon(pipWindow);
+    if (window.setupPipRenderer) window.setupPipRenderer(pipWindow);
+
+    if (window.refreshPlayerUI) {window.refreshPlayerUI();}
+
+    pipWindow.addEventListener('pagehide', () => { pipWindow = null; });
+
+  } catch (err) {
+    console.error('PiP 실행 실패:', err);
   }
 }
-
-let lastPipRenderTime = 0;
-const PIP_FPS_LIMIT = 15; // ✨ 최적화 3: 15프레임으로 제한 (보조창이므로 충분함)
-const PIP_INTERVAL = 1000 / PIP_FPS_LIMIT;
-
-// PiP 캔버스의 가로 해상도를 480px로 고정하여 픽셀 연산량 90% 감소
-const PIP_TARGET_WIDTH = 480; 
-
-function renderPipLoop(mainCanvas) {
-  if (!isPipActive) return;
-  requestAnimationFrame(() => renderPipLoop(mainCanvas));
-
-  const now = performance.now();
-  const delta = now - lastPipRenderTime;
-
-  if (delta < PIP_INTERVAL) return;
-  lastPipRenderTime = now - (delta % PIP_INTERVAL);
-
-  // 원본 캔버스의 비율을 계산
-  const aspect = mainCanvas.height / mainCanvas.width;
-  const targetHeight = PIP_TARGET_WIDTH * aspect;
-
-  // PiP 캔버스가 작게 세팅되어 있지 않다면 한 번만 리사이징
-  if (pipCanvas.width !== PIP_TARGET_WIDTH) {
-    pipCanvas.width = PIP_TARGET_WIDTH;
-    pipCanvas.height = targetHeight;
-  }
-
-  // 무거운 원본 화면을 작은 해상도로 압축해서 복사 (매우 가벼움)
-  pipCtx.clearRect(0, 0, pipCanvas.width, pipCanvas.height);
-  pipCtx.drawImage(mainCanvas, 0, 0, pipCanvas.width, pipCanvas.height);
-
-
-  // 네온 테두리 효과 그리기
-  if (currentGlowState !== 'idle') {
-    const time = Date.now();
-    let r, g, b, pulse;
-    
-    if (currentGlowState === 'caution' || currentGlowState === 'warn') {
-      pulse = Math.abs(Math.sin(time / 400));
-      r = 251; g = 146; b = 60; // 주황색 (Warn)
-    } else {
-      pulse = Math.abs(Math.sin(time / 150));
-      r = 248; g = 113; b = 113; // 빨간색 (Alert)
-    }
-
-    // 깜빡임 강도 (최소 0.4 ~ 최대 1.0)
-    const baseAlpha = 0.4 + pulse * 0.6;
-
-    // ✨ 3겹 레이어 기법: 바깥쪽의 두꺼운 선부터 안쪽의 얇은 선으로 덮어 그립니다.
-    const layers = [
-      // 1. 가장 넓게 퍼지는 은은한 빛 (두께 48px)
-      { width: 48, alpha: baseAlpha * 0.25, color: `${r}, ${g}, ${b}` }, 
-      // 2. 중간 굵기의 진한 후광 (두께 20px)
-      { width: 20, alpha: baseAlpha * 0.65, color: `${r}, ${g}, ${b}` }, 
-      // 3. 가장 안쪽의 쨍한 중심선 (두께 6px) - Alert 상태일 땐 진짜 네온처럼 흰색 코어 사용
-      { width: 6,  alpha: baseAlpha,        color: currentGlowState === 'alert' || currentGlowState === 'warning' ? '255, 230, 230' : `${r}, ${g}, ${b}` }
-    ];
-
-    layers.forEach(layer => {
-      pipCtx.lineWidth = layer.width;
-      pipCtx.strokeStyle = `rgba(${layer.color}, ${layer.alpha})`;
-      
-      // 선이 캔버스 밖으로 잘리지 않게 정확히 안쪽으로 밀어넣음
-      const offset = layer.width / 2;
-      pipCtx.strokeRect(offset, offset, pipCanvas.width - layer.width, pipCanvas.height - layer.width);
-    });
-  }
-} 

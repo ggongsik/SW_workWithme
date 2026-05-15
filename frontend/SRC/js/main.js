@@ -14,9 +14,7 @@ import {
 import { 
   adjRepeat, commitRepeat, numOnly, commitFocus, commitBreak, togglePomo 
 } from './pomodoro.js';
-import { 
-  prevTrack, togglePlay, nextTrack, toggleShuffle, addFiles, removeTrack 
-} from './player.js';
+import { togglePlay, prevTrack, nextTrack, toggleShuffle, removeTrack, addFiles, addYouTubeToPlaylist, refreshPlayerUI } from './player.js';
 import { 
   addNoteFromInput, saveCurrentNote, selectNote, deleteNote, 
   addTodo, toggleTodo, deleteTodo, 
@@ -57,6 +55,8 @@ window.nextTrack = nextTrack;
 window.toggleShuffle = toggleShuffle;
 window.addFiles = addFiles;
 window.removeTrack = removeTrack;
+window.addYouTubeToPlaylist = addYouTubeToPlaylist;
+window.refreshPlayerUI = refreshPlayerUI;
 
 // [노트]
 window.addNoteFromInput = addNoteFromInput;

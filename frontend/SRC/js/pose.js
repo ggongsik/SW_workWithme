@@ -224,7 +224,6 @@ export function startCalibration() {
     }
   }, 1000);
 }
-
 export function togglePostureCorrection() {
   const toggleBtn = document.getElementById('calib-toggle-btn');
   
