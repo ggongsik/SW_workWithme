@@ -40,7 +40,13 @@ window.onYouTubeIframeAPIReady = () => {
     height: '80', width:  '120',
     playerVars: { autoplay: 0, controls: 0, modestbranding: 1, playsinline: 1, disablekb: 1, fs: 0, rel: 0, iv_load_policy: 3, origin: window.location.origin },
     events: {
-      onReady: () => { ytReady = true; },
+      onReady: () => { 
+        ytReady = true; 
+        // ✨ 유튜브 기능이 켜졌을 때, 이미 0번 트랙(유튜브)이 대기 중이라면 영상 장전!
+        if (curTrack >= 0 && tracks[curTrack] && tracks[curTrack].type === 'youtube') {
+          ytPlayer.cueVideoById({ videoId: tracks[curTrack].ytId, suggestedQuality: 'small' });
+        }
+      },
       onStateChange: onYTStateChange,
     },
   });
@@ -126,7 +132,7 @@ function loadSavedTracks() {
   };
 }
 
-// ✨ 드래그로 순서가 바뀌었을 때 DB를 통째로 갱신하는 함수
+// 드래그로 순서가 바뀌었을 때 DB를 통째로 갱신하는 함수
 function rebuildDatabase() {
   if (!db) return;
   const tx = db.transaction('tracks', 'readwrite');
@@ -203,19 +209,29 @@ function loadTrack(i, autoplay = true) {
   if (t.type === 'youtube') {
     if (!audio.paused) audio.pause();
     activeSource = 'youtube';
-    if (ytPlayer && ytReady) {
-      ytPlayer.loadVideoById({ videoId: t.ytId, suggestedQuality: 'small' });
-      if (!autoplay) ytPlayer.pauseVideo();
+    
+    // 유튜브 API가 함수까지 제대로 불러왔는지 확인
+    if (ytPlayer && ytReady && typeof ytPlayer.loadVideoById === 'function') {
+      if (autoplay) {
+        ytPlayer.loadVideoById({ videoId: t.ytId, suggestedQuality: 'small' });
+      } else {
+        ytPlayer.cueVideoById({ videoId: t.ytId, suggestedQuality: 'small' });
+      }
     }
+    
+    // 자동 재생이 아닐 땐 확실하게 플레이 버튼(▶)으로 멈춰둠
+    if (!autoplay) syncPlayButton(false);
+    
   } else if (t.url) {
-    if (ytPlayer && ytReady && ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) ytPlayer.pauseVideo();
+    if (ytPlayer && ytReady && typeof ytPlayer.getPlayerState === 'function') {
+      if (ytPlayer.getPlayerState() === 1) ytPlayer.pauseVideo();
+    }
+    
     activeSource = 'local';
     audio.src = t.url;
     
     if (autoplay) {
-      audio.play()
-        .then(() => syncPlayButton(true))
-        .catch(() => syncPlayButton(false));
+      audio.play().then(() => syncPlayButton(true)).catch(() => syncPlayButton(false));
     } else {
       syncPlayButton(false);
     }
@@ -367,16 +383,29 @@ export function togglePlay() {
   if (curTrack < 0) { loadTrack(0); return; }
 
   if (tracks[curTrack].type === 'youtube') {
-    if (ytPlayer && ytReady) {
-      if (ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) ytPlayer.pauseVideo();
-      else ytPlayer.playVideo();
+    // ytPlayer가 준비되었는지 확실히 체크
+    if (ytPlayer && ytReady && typeof ytPlayer.getPlayerState === 'function') {
+      const state = ytPlayer.getPlayerState();
+      
+      // YT.PlayerState 대신 안전하게 '숫자'를 직접 사용합니다.
+      // 1: 재생 중, 2: 일시 정지, 5: 장전됨(Cue), -1: 시작 전
+      if (state === 1) {
+        ytPlayer.pauseVideo();
+      } else if (state === 2) {
+        ytPlayer.playVideo();
+      } else {
+        // 대기 중(5)이거나 에러/시작 전(-1)이라면 무조건 영상을 새로 불러와서 '강제 재생' 때림!
+        ytPlayer.loadVideoById({ videoId: tracks[curTrack].ytId, suggestedQuality: 'small' });
+      }
     }
   } else {
+    // 로컬 파일 재생 로직
     if (audio.paused) {
       activeSource = 'local';
-      audio.play().catch(() => {});
+      audio.play().then(() => syncPlayButton(true)).catch(() => syncPlayButton(false));
     } else {
       audio.pause();
+      syncPlayButton(false);
     }
   }
 }

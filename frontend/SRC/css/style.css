@@ -45,7 +45,7 @@ body{font-family:'Segoe UI',sans-serif;overflow:hidden;background:#000;}
 #pomo-play:hover{background:rgba(0,100,180,0.5);border-color:#00bfff;}
 
 /* BOTTOM BAR — 고정 (드래그 제거) */
-#bottom-bar-drag{position:absolute;bottom:28px;left:50%;transform:translateX(-50%);z-index:6;}
+#bottom-bar-drag{position:absolute;bottom:68px;left:50%;transform:translateX(-50%);z-index:6;}
 #bottom-bar{display:flex;align-items:center;background:rgba(5,10,25,0.88);border:1px solid rgba(0,180,255,0.18);border-radius:12px;min-width:320px;width:25vw;}
 #pl-toggle-btn{background:rgba(0,30,60,0.6);border:none;border-right:1px solid rgba(0,180,255,0.15);border-radius:12px 0 0 12px;padding:10px;color:#5090b0;cursor:pointer;font-size:11px;white-space:nowrap;display:flex;align-items:center;gap:5px;transition:all .15s;height:100%;}
 #pl-toggle-btn:hover,#pl-toggle-btn.on{border-right-color:#00bfff;color:#00bfff;background:rgba(0,60,100,0.4);}
