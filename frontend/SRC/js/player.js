@@ -117,7 +117,12 @@ function loadSavedTracks() {
         tracks.push({ id: item.id, t: item.name, a: item.artist, url: URL.createObjectURL(item.fileBlob), type: item.type || 'local', fileBlob: item.fileBlob });
       }
     });
+    
     renderPlaylist();
+    
+    if (tracks.length > 0 && curTrack < 0) {
+      loadTrack(0, false);
+    }
   };
 }
 
