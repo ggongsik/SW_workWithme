@@ -3,7 +3,6 @@
 WebSocket이나 AI 파이프라인 없이 순수 로직만 검증.
 """
 
-import time
 from app.websocket.manager import SessionState
 from app.services import calibration
 
@@ -27,12 +26,12 @@ def test_start_calibration_sets_mode():
 def test_add_sample_accumulates():
     state = make_test_state()
     calibration.start_calibration(state)
-    
-    progress = calibration.add_sample(state, 0.15)
-    assert progress.samples_collected == 1
-    
-    progress = calibration.add_sample(state, 0.16)
-    assert progress.samples_collected == 2
+
+    calibration.add_sample(state, 0.15)
+    assert len(state.calibration_samples) == 1
+
+    calibration.add_sample(state, 0.16)
+    assert len(state.calibration_samples) == 2
 
 
 def test_finalize_computes_correct_stats():

@@ -20,7 +20,6 @@ from app.models.schemas import (
     SessionStarted,
     ErrorMessage,
     CalibrationComplete,
-    CalibrationProgress as CalibProgressMsg,
     DetectionResult as DetectionResultMsg,
     SessionEnded
 )
@@ -104,6 +103,8 @@ async def _handle_text_message(state: SessionState, raw_text: str) -> None:
 
     if msg_type == "start_calibration" :
         await _start_calibration(state)
+    elif msg_type == "stop_calibration" :
+        await _stop_calibration(state)
     elif msg_type == "stop_session" :
         # Step 9에서 본격 구현 (DB 저장 + 리포트). 지금은 placeholder.
         await _stop_session(state)
@@ -131,7 +132,46 @@ async def _start_calibration(state: SessionState) -> None:
     
     calibration.start_calibration(state)
     print(f"[{state.session_id[:8]}] 캘리브레이션 시작")
-    
+
+async def _stop_calibration(state: SessionState) -> None:
+    """
+    프론트엔드가 10초 타이머 종료 후 보내는 메시지 처리.
+    캘리브레이션을 마무리하고 monitoring 모드로 전환.
+    """
+    if state.mode != "calibrating":
+        await send_error(
+            state.websocket,
+            code = "NOT_CALIBRATING",
+            message = "캘리브레이션 상태가 아닙니다"
+        )
+        return
+
+    result = calibration.finalize_calibration(state)
+
+    # 샘플 부족 처리: 현재는 A안 (에러 + idle 복귀). 추후 상의 후 변경 가능.
+    if result is None:
+        await send_error(
+            state.websocket,
+            code = "INSUFFICIENT_SAMPLES",
+            message = f"수집된 샘플이 부족합니다 (최소 {calibration.MIN_SAMPLES_REQUIRED}개 필요)"
+        )
+        state.mode = "idle"
+        return
+
+    await send_json(state.websocket, CalibrationComplete(
+        baseline_delta_depth = round(result.baseline, 4),
+        baseline_std = round(result.std, 4),
+        threshold = round(result.threshold, 4)
+    ))
+    # 캘리브레이션 완료 시점을 첫 이벤트로 기록 (정상 상태 시작점)
+    state.posture_events.append(PostureEvent(
+        timestamp=time.time(),
+        is_turtle=False,
+        delta_depth_smoothed=result.baseline,
+    ))
+    print(f"[{state.session_id[:8]}] 캘리브레이션 완료: "
+          f"baseline={result.baseline:.4f}, threshold={result.threshold:.4f}")
+
 async def _handle_frame(state: SessionState, frame_bytes: bytes) -> None:
     """
     프레임 바이트 처리. 
@@ -175,44 +215,13 @@ async def _handle_frame(state: SessionState, frame_bytes: bytes) -> None:
         
 
 async def _process_calibration_frame(state: SessionState, delta_depth: float) -> None:
-    """캘리브레이션 모드의 프레임 처리"""
-    progress = calibration.add_sample(state, delta_depth)
+    """
+    캘리브레이션 모드의 프레임 처리 - 샘플 누적만 담당.
 
-    # 매 프레임마다 메시지를 보내는데, 프론트와 상의해서 굳이 매 프레임마다 보내지 않아도 됨
-    await send_json(state.websocket, CalibProgressMsg(
-        elapsed_sec = round(progress.elapsed_sec, 2),
-        total_sec = progress.total_sec,
-        samples_collected = progress.samples_collected
-    ))
-
-    if progress.is_complete:
-        result = calibration.finalize_calibration(state)
-
-        # None 처리
-        if result is None:
-            await send_error(
-                state.websocket,
-                code = "INSUFFICIENT_SAMPLES",
-                message = f"수집된 샘플이 부족합니다 (최소 {calibration.MIN_SAMPLES_REQUIRED}개 필요)"
-            )
-            state.mode = "idle"
-            return 
-
-        # send_json(state.websocket, CalibrationComplete
-        await send_json(state.websocket, CalibrationComplete(
-            baseline_delta_depth = round(result.baseline, 4),
-            baseline_std = round(result.std, 4),
-            threshold = round(result.threshold, 4) # baseline_delta_depth + 2*baseline_std
-        ))
-        # 캘리브레이션 완료 시점도 첫 이벤트로 기록 (정상 상태 시작점)
-        state.posture_events.append(PostureEvent(
-            timestamp=time.time(),
-            is_turtle=False,
-            delta_depth_smoothed=result.baseline,
-        ))
-
-        print(f"[{state.session_id[:8]}] 캘리브레이션 완료: "
-              f"baseline={result.baseline:.4f}, threshold={result.threshold:.4f}")
+    프론트엔드가 10초 타이머를 관리하고, 종료 시점에 stop_calibration 메시지를
+    보내면 그때 finalize_calibration이 호출됨 (_stop_calibration 참조).
+    """
+    calibration.add_sample(state, delta_depth)
 
 async def _process_monitoring_frame(state: SessionState, delta_depth: float) -> None:
     """모니터링 모드의 프레임 처리"""

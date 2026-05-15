@@ -17,12 +17,6 @@ class SessionStarted(BaseModel):
     session_id: str                                      # 서버가 보내는 건 여기서 만들어서 보내기 때문에 그냥 넣어버려
     timestamp: float
 
-class CalibrationProgress(BaseModel):
-    type: Literal["calibration_progress"] = "calibration_progress"
-    elapsed_sec: float
-    total_sec: float = 10.0
-    samples_collected: int
-
 class CalibrationComplete(BaseModel):
     type: Literal["calibration_complete"] = "calibration_complete"
     baseline_delta_depth: float
