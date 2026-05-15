@@ -1,4 +1,4 @@
-<style>
+
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',sans-serif;overflow:hidden;background:#000;}
 #root{width:100%;min-height:100vh;background:#1a1a2e;border-radius:12px;overflow:hidden;position:relative;display:flex;flex-direction:column;color:#e0e0f0;user-select:none;}
@@ -49,9 +49,44 @@ body{font-family:'Segoe UI',sans-serif;overflow:hidden;background:#000;}
 #bottom-bar{display:flex;align-items:center;background:rgba(5,10,25,0.88);border:1px solid rgba(0,180,255,0.18);border-radius:12px;min-width:320px;width:25vw;}
 #pl-toggle-btn{background:rgba(0,30,60,0.6);border:none;border-right:1px solid rgba(0,180,255,0.15);border-radius:12px 0 0 12px;padding:10px;color:#5090b0;cursor:pointer;font-size:11px;white-space:nowrap;display:flex;align-items:center;gap:5px;transition:all .15s;height:100%;}
 #pl-toggle-btn:hover,#pl-toggle-btn.on{border-right-color:#00bfff;color:#00bfff;background:rgba(0,60,100,0.4);}
-#player{flex:1;display:flex;align-items:center;gap:8px;padding:8px 10px;}
-#player-info{flex:1;min-width:0;}
-#player-title{font-size:12px;color:#c8e6ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#player {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  min-width: 0; 
+}
+
+/* 밖으로 삐져나가는 텍스트 가리기 */
+#player-info {
+  flex: 1;
+  min-width: 0; 
+  overflow: hidden; 
+}
+
+/* 짧은 제목은 말줄임표(...) 처리 대기 */
+#player-title {
+  font-size: 12px;
+  color: #c8e6ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block; 
+}
+/* JS에서 제목이 길다고 판단될 때만 발동하는 스크롤 */
+.scroll {
+  display: inline-block !important;
+  overflow: visible !important; 
+  /* padding-left 삭제: 짧은 곡처럼 처음부터 왼쪽 정렬 상태로 시작 */
+  animation: scroll-left 12s linear infinite;
+}
+
+/* var(--scroll-dist)라는 변수를 통해 삐져나간 딱 그 길이만큼만 이동시킵니다 */
+@keyframes scroll-left {
+  0%, 15%  { transform: translateX(0); } /* 처음 위치에서 약 1.8초간 정지 (읽을 시간 부여) */
+  85%, 100% { transform: translateX(var(--scroll-dist)); } /* 마지막 글자 끝까지 스크롤 후 정지, 그리고 다시 처음으로 휙 리셋 */
+}
 #player-artist{font-size:10px;color:#5090b0;}
 #player-progress{width:100%;height:2px;background:rgba(255,255,255,0.1);border-radius:1px;margin-top:4px;}
 #player-bar{height:100%;width:35%;background:#00bfff;border-radius:1px;transition:width .3s;}
@@ -256,4 +291,86 @@ body{font-family:'Segoe UI',sans-serif;overflow:hidden;background:#000;}
 .calib-btn.cancel { background: transparent; border: 1px solid rgba(255,255,255,0.2); color: #a0c8e0; }
 .calib-btn.cancel:hover:not(:disabled) { background: rgba(255,255,255,0.1); border-color: #fff; }
 
-</style>
+/* 플레이리스트 드래그 앤 드롭 효과 */
+.pl-item {cursor: grab; /* 마우스를 올렸을 때 잡을 수 있다는 표시 */}
+.pl-item:active {cursor: grabbing;}
+.pl-item.dragging {opacity: 0.4;background: rgba(0, 180, 255, 0.2);}
+
+/* PiP 전용 래퍼: 전체 화면을 다 쓰도록 설정 */
+.pip-wrap {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #000;
+}
+
+/* 플레이어 레이어: 아래쪽에 배치하고 위쪽은 비워둠 */
+.pip-overlay {
+  position: absolute;
+  bottom: 10px; /* 아래쪽에서 약간 띄움 */
+  left: 8px;
+  right: 8px;
+  pointer-events: none; /* 배경의 3D 드래그 방해 금지 */
+}
+
+/* PiP 안의 플레이어 박스: 메인 디자인을 소형화 */
+.pip-player-box {
+  pointer-events: auto; /* 버튼은 눌려야 함 */
+  background: rgba(8, 16, 36, 0.85); /* 약간 투명하게 하여 배경이 살짝 비침 */
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(0, 180, 255, 0.25);
+  border-radius: 10px;
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+  height: 54px; /* 높이를 제한하여 1/4 정도 차지하게 함 */
+}
+
+/* 내부 폰트 및 아이콘 크기 미세 조정 */
+.pip-player-box #player-info { gap: 0px; }
+.pip-player-box #pip-song-title { font-size: 11px; }
+.pip-player-box #pip-song-artist { font-size: 9px; }
+.pip-btn {
+  background: none; border: none; color: #00bfff; 
+  cursor: pointer; font-size: 14px; padding: 2px;
+  transition: transform 0.1s;
+}
+.pip-btn:active { transform: scale(0.9); }
+
+#pip-song-title {
+  font-size: 11px;
+  color: #c8e6ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block; 
+}
+
+/* PiP 내 프로그레스 바 스타일 */
+#pip-player-progress {
+  width: 100%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 1px;
+  margin-top: 4px;
+  overflow: hidden;
+}
+
+#pip-player-bar {
+  height: 100%;
+  width: 0%; /* 초기값 */
+  background: #00bfff;
+  border-radius: 1px;
+  transition: width 0.3s;
+}
+#pip-song-artist {
+  color: #7090a0 !important; 
+  font-size: 9px;
+  opacity: 0.9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
