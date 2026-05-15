@@ -9,7 +9,7 @@ from app.websocket.manager import SessionState
 
 
 # ===== 상수 =====
-CALIBRATION_DURATION_SEC = 10.0
+# 프론트가 10초 타이머를 관리. 백엔드는 시간 추적 안 함.
 MIN_SAMPLES_REQUIRED = 30  # 최소 30프레임 (3FPS 기준 10초), 얼마나 받을지는 상의 필요
 THRESHOLD_SIGMA = 2.0
 
@@ -22,39 +22,21 @@ class CalibrationResult:
     sample_count: int
     duration_sec: float
 
-# ===== 진행 상태 =====
-@dataclass
-class CalibrationProgress:
-    elapsed_sec: float
-    total_sec: float
-    samples_collected: int
-    is_complete: bool
-
 def start_calibration(state: SessionState) -> None:
     state.mode = "calibrating"
     state.calibration_started_at = time.time()
     state.calibration_samples = [] # 재캘리브레이션일 경우 초기화
 
-def add_sample(state: SessionState, delta_depth: float) -> CalibrationProgress:
+def add_sample(state: SessionState, delta_depth: float) -> None:
     """
-    프레임 한 장 처리: delta_depth를 누적 + 진행률 계산.
-    
+    프레임 한 장 처리: delta_depth를 누적.
+
     캘리브레이션이 아닌 상태에서 호출되면 ValueError.
     """
     if (state.mode != "calibrating") or (state.calibration_started_at is None):
         raise ValueError("캘리브레이션 상태가 아닙니다")
-    
-    state.calibration_samples.append(delta_depth)
-    elapsed = time.time() - state.calibration_started_at
-    is_complete = (elapsed >= CALIBRATION_DURATION_SEC) 
-    
 
-    return CalibrationProgress(
-        elapsed_sec = elapsed,
-        total_sec = CALIBRATION_DURATION_SEC,
-        samples_collected = len(state.calibration_samples),
-        is_complete = is_complete
-    )
+    state.calibration_samples.append(delta_depth)
 
 def finalize_calibration(state: SessionState) -> Optional[CalibrationResult]:
     """
