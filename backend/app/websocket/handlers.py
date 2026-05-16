@@ -1,5 +1,7 @@
 ## 질문 : async/await  붙이는 기준
 import asyncio
+import os
+import sys
 import time
 import json
 import io
@@ -11,7 +13,6 @@ from PIL import Image
 from fastapi import WebSocket, WebSocketDisconnect
 
 from app.websocket.manager import manager, SessionState, PostureEvent
-from app.services.ai_pipeline import PosturePipeline, MockPosturePipeline
 from app.services import calibration, detection
 from app.services.persistence import save_session_with_report
 
@@ -23,8 +24,24 @@ from app.models.schemas import (
     DetectionResult as DetectionResultMsg,
     SessionEnded
 )
-#
-_ai_pipeline: PosturePipeline = MockPosturePipeline()
+
+# AI 파이프라인 선택: True면 Mock, False면 실제 AI(MediaPipe + Depth Anything v2)
+USE_MOCK_PIPELINE = False
+
+if USE_MOCK_PIPELINE:
+    from app.services.ai_pipeline import MockPosturePipeline
+    _ai_pipeline = MockPosturePipeline()
+else:
+    # ai/ 폴더와 Depth-Anything-V2 라이브러리 경로 등록
+    # 주의: insert(0, ...) 대신 append 사용. Depth-Anything-V2/app.py가
+    # backend의 app/ 패키지보다 먼저 매칭되는 것을 방지.
+    _AI_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "ai"))
+    sys.path.append(_AI_DIR)
+    sys.path.append(os.path.join(_AI_DIR, "Depth-Anything-V2"))
+    from pipeline import PosturePipeline  # type: ignore
+
+    _MODEL_PATH = os.path.join(_AI_DIR, "models", "depth_anything_v2_vits.pth")
+    _ai_pipeline = PosturePipeline(model_path=_MODEL_PATH)
 
 # Pydantic 모델(객체)을 JSON으로 전송
 # model_dump() : Dict로 변환
@@ -201,6 +218,11 @@ async def _handle_frame(state: SessionState, frame_bytes: bytes) -> None:
         _ai_pipeline.process_frame,
         frame
     )
+
+    # [임시 진단] AI 처리 시간 / 감지 결과 로그
+    print(f"[AI] processing_time={result.get('processing_time_ms', 0):.0f}ms, "
+          f"detected={result['detected']}, delta={result.get('delta_depth', 0):.4f}, "
+          f"mode={state.mode}")
 
     if not result["detected"]:
         """
