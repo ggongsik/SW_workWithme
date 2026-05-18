@@ -6,7 +6,7 @@ import numpy as np
 import mediapipe as mp
 from typing import TypedDict, Optional
 
-sys.path.insert(0, './Depth-Anything-V2')
+import os; sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Depth-Anything-V2"))
 from depth_anything_v2.dpt import DepthAnythingV2
 
 

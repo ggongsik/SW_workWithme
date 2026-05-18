@@ -37,10 +37,9 @@ else:
     # backend의 app/ 패키지보다 먼저 매칭되는 것을 방지.
     _AI_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "ai"))
     sys.path.append(_AI_DIR)
-    sys.path.append(os.path.join(_AI_DIR, "Depth-Anything-V2"))
     from pipeline import PosturePipeline  # type: ignore
 
-    _MODEL_PATH = os.path.join(_AI_DIR, "models", "depth_anything_v2_vits.pth")
+    _MODEL_PATH = os.path.abspath(os.path.join(_AI_DIR, "..", "models", "depth_anything_v2_vits.pth"))
     _ai_pipeline = PosturePipeline(model_path=_MODEL_PATH)
 
 # Pydantic 모델(객체)을 JSON으로 전송
