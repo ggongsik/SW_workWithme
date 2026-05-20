@@ -8,7 +8,7 @@ let timeFmt = 12; // 시간 형식 (12시/24시)
 // PiP 모드와 메인 UI가 공유할 현재 상태 변수
 export let currentGlowState = 'idle';
 
-// ── 1. 시계 로직 (내부 전용) ──
+// ── 시계 로직  ──
 function updateClock() {
   const timeEl = document.getElementById('clock-time');
   const dateEl = document.getElementById('clock-date');
@@ -29,7 +29,7 @@ function updateClock() {
   dateEl.textContent = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + '(' + days[d.getDay()] + ')';
 }
 
-// ── js/ui.js : makeDraggable 함수 수정 ──
+//  드래그기능
 function makeDraggable(el, handle) {
   handle = handle || el;
   handle.style.touchAction = 'none'; 
@@ -41,7 +41,6 @@ function makeDraggable(el, handle) {
     if (e.target.closest('button, input, textarea, select, [contenteditable]')) return;
     e.preventDefault();
     
-    // ✨ 1. 전역 변수로 "나 지금 드래그 중이야!" 라고 3D 화면에 소리칩니다.
     window.isUIDragging = true; 
 
     // 간섭 방지 유리판
@@ -67,7 +66,7 @@ function makeDraggable(el, handle) {
     };
 
     const onUp = () => {
-      // ✨ 2. 마우스를 놓으면 다시 3D 렌더링을 켭니다.
+      // 마우스를 놓으면 다시 3D 렌더링을 켭니다.
       window.isUIDragging = false; 
 
       const finalRect = el.getBoundingClientRect();
@@ -89,7 +88,6 @@ function makeDraggable(el, handle) {
   });
 }
 
-// DOM이 로드되면 드래그 요소들과 시계, 그리고 메인 화면 네온 UI 세팅
 window.addEventListener('DOMContentLoaded', () => {
   setInterval(updateClock, 1000); 
   updateClock();
@@ -110,7 +108,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
 
 // ============================================================================
-// 🌟 3. 외부로 내보내는 기능들 (export)
+// 외부로 내보내는 기능들 (export)
 // ============================================================================
 
 export function checkLogin() { /* ... 기존과 동일 ... */ 
@@ -125,7 +123,7 @@ export function checkLogin() { /* ... 기존과 동일 ... */
   }
 }
 
-export function logout() { /* ... 기존과 동일 ... */
+export function logout() { 
   const isConfirmed = confirm("정말 종료하시겠습니까? (로그아웃됩니다)");
   if (!isConfirmed) return; 
   if (window.togglePlay && document.getElementById('play-btn').textContent === '⏸') {
@@ -186,16 +184,16 @@ export function setTab(tab, el) {
 
 
 // ============================================================================
-// 🌟 4. 네온 효과 및 Document PiP 모드
+// 네온 효과 및 Document PiP 모드
 // ============================================================================
 
 export let pipWindow = null;
 
-// ── 1. 외부(콘솔, 웹소켓)에서 상태를 바꿀 때 호출할 함수 ──
+// 외부(콘솔, 웹소켓)에서 상태를 바꿀 때 호출할 함수
 export function setUIGlow(state) {
   currentGlowState = state; 
   
-  // 메인 화면 전체 테두리 네온 효과 조작 (존재할 경우)
+  // 메인 화면 전체 테두리 네온 효과 조작
   const screenBorder = document.getElementById('warning-border'); 
   if (screenBorder) {
     if (state === 'idle') {
@@ -206,11 +204,11 @@ export function setUIGlow(state) {
       screenBorder.style.boxShadow = 'inset 0 0 100px rgba(248, 113, 113, 0.9)';
     }
   }
-  console.log(`✨ UI 상태가 변경되었습니다: ${state}`);
+  console.log(` UI 상태가 변경되었습니다: ${state}`);
 }
 
 
-// ── 2. PiP 내부 네온 테두리 애니메이션 (CSS 기반) ──
+// PiP 내부 네온 테두리 애니메이션
 function setupPipNeon(pw) {
   const neon = pw.document.getElementById('pip-neon');
   if (!neon) return;
@@ -246,7 +244,7 @@ function setupPipNeon(pw) {
 }
 
 
-// ── 3. Document PiP 토글 기능 ──
+// Document PiP 토글 기능
 export async function togglePiP() {
   if (!('documentPictureInPicture' in window)) {
     alert('Document PiP API를 지원하지 않는 브라우저입니다.');
@@ -259,10 +257,10 @@ export async function togglePiP() {
       return;
     }
 
-    // 창 크기 조절 (가로로 더 길게 하면 좋습니다)
+    // 창 크기 조절 
     pipWindow = await documentPictureInPicture.requestWindow({ width: 320, height: 240 });
 
-    // CSS 복사 로직 (기존 유지)
+    // CSS 복사 로직 
     [...document.styleSheets].forEach(sheet => {
       try {
         const css = [...sheet.cssRules].map(r => r.cssText).join('');

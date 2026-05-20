@@ -3,8 +3,6 @@
 // 앱의 진입점(Entry Point). 각 모듈에서 기능을 가져와 전역 스코프에 연결합니다.
 // ============================================================================
 
-// 1. 각 모듈 파일에서 필요한 함수들을 가져옵니다(import).
-// (주의: 각 모듈 파일에서 해당 함수들 앞에 'export' 키워드가 붙어 있어야 합니다.)
 
 import { initWebSocket } from './network.js';
 import { openCalibration, closeCalibration, startCalibration, togglePostureCorrection } from './pose.js';
@@ -89,10 +87,8 @@ window.addEventListener('DOMContentLoaded', () => {
   // 웹소켓 연결 시작
   initWebSocket();
 
-  // ✨ 3D 배경 및 캐릭터 렌더링 시작
+  // 3D 배경 및 캐릭터 렌더링 시작
   init3DScene();
 
-  
-  // (필요하다면 추가로 초기화할 함수들을 여기에 배치합니다)
   console.log("Lofi Space App Initialized!");
 });
