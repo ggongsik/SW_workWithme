@@ -35,6 +35,9 @@ else:
     # ai/ 폴더와 Depth-Anything-V2 라이브러리 경로 등록
     # 주의: insert(0, ...) 대신 append 사용. Depth-Anything-V2/app.py가
     # backend의 app/ 패키지보다 먼저 매칭되는 것을 방지.
+    """
+    이 부분 논의가 필요하다.
+    """
     _AI_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "ai"))
     sys.path.append(_AI_DIR)
     from pipeline import PosturePipeline  # type: ignore
