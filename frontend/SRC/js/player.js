@@ -112,21 +112,20 @@ request.onsuccess = function(e) {
 function loadSavedTracks() {
   const tx = db.transaction('tracks', 'readonly');
   const store = tx.objectStore('tracks');
+  const currentUserId = localStorage.getItem('lofi_user_id') || 'guest';
+
   store.getAll().onsuccess = function(req) {
     tracks.length = 0;
     req.target.result.forEach(item => {
-      if (item.type === 'youtube') {
-        tracks.push({ id: item.id, t: item.name, a: item.artist, type: 'youtube', ytId: item.ytId });
-      } else {
-        tracks.push({ id: item.id, t: item.name, a: item.artist, url: URL.createObjectURL(item.fileBlob), type: item.type || 'local', fileBlob: item.fileBlob });
+      if (item.userId === currentUserId || (!item.userId && currentUserId === 'guest')) {
+        if (item.type === 'youtube') {
+          tracks.push({ id: item.id, t: item.name, a: item.artist, type: 'youtube', ytId: item.ytId });
+        } else {
+          tracks.push({ id: item.id, t: item.name, a: item.artist, url: URL.createObjectURL(item.fileBlob), type: item.type || 'local', fileBlob: item.fileBlob });
+        }
       }
     });
-    
     renderPlaylist();
-    
-    if (tracks.length > 0 && curTrack < 0) {
-      loadTrack(0, false);
-    }
   };
 }
 
@@ -134,12 +133,20 @@ function rebuildDatabase() {
   if (!db) return;
   const tx = db.transaction('tracks', 'readwrite');
   const store = tx.objectStore('tracks');
-  store.clear().onsuccess = () => {
+  const currentUserId = localStorage.getItem('lofi_user_id') || 'guest';
+
+  store.getAll().onsuccess = function(e) {
+    e.target.result.forEach(item => {
+      if (item.userId === currentUserId || (!item.userId && currentUserId === 'guest')) {
+        store.delete(item.id);
+      }
+    });
+    
     tracks.forEach(t => {
-      const obj = { name: t.t, artist: t.a, type: t.type };
+      const obj = { name: t.t, artist: t.a, type: t.type, userId: currentUserId };
       if (t.type === 'youtube') obj.ytId = t.ytId;
       else obj.fileBlob = t.fileBlob; 
-      store.add(obj).onsuccess = (e) => { t.id = e.target.result; }; // 새 ID 발급
+      store.add(obj).onsuccess = (ev) => { t.id = ev.target.result; };
     });
   };
 }
@@ -436,6 +443,7 @@ export function addFiles(files) {
   const audioExts = /\.(mp3|wav|flac|ogg|m4a|aac|opus|wma)$/i;
   const tx = db.transaction('tracks', 'readwrite');
   const store = tx.objectStore('tracks');
+  const currentUserId = localStorage.getItem('lofi_user_id') || 'guest'; // ✨ 추가
   let added = 0;
 
   Array.from(files)
@@ -444,7 +452,7 @@ export function addFiles(files) {
     .forEach(f => {
       const name = f.name.replace(/\.[^.]+$/, '');
       const artist = f.webkitRelativePath ? f.webkitRelativePath.split('/')[0] : '로컬 파일';
-      const req = store.add({ name, artist, fileBlob: f, type: 'local' });
+      const req = store.add({ name, artist, fileBlob: f, type: 'local', userId: currentUserId });
 
       req.onsuccess = function(e) {
         tracks.push({ id: e.target.result, t: name, a: artist, url: URL.createObjectURL(f), type: 'local', fileBlob: f });
@@ -476,7 +484,9 @@ export async function addYouTubeToPlaylist() {
 
   if (db) {
     const store = db.transaction('tracks', 'readwrite').objectStore('tracks');
-    store.add({ name: title, artist: artist, type: 'youtube', ytId: id }).onsuccess = function(e) {
+    const currentUserId = localStorage.getItem('lofi_user_id') || 'guest'; // ✨ 추가
+    
+    store.add({ name: title, artist: artist, type: 'youtube', ytId: id, userId: currentUserId }).onsuccess = function(e) {
       tracks.push({ id: e.target.result, t: title, a: artist, type: 'youtube', ytId: id });
       renderPlaylist();
       urlInput.value = "";
@@ -501,4 +511,25 @@ export function refreshPlayerUI() {
     isPlaying = (ytPlayer.getPlayerState() === YT.PlayerState.PLAYING);
   }
   syncPlayButton(isPlaying);
+}
+
+export function reloadPlaylistForUser() {
+  if (!db) return;
+  
+  // 기존 재생 중이던 음악 정지
+  if (audio && !audio.paused) audio.pause();
+  if (ytPlayer && ytReady && ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) ytPlayer.pauseVideo();
+  
+  // UI 초기화
+  curTrack = -1;
+  const titleEl = document.getElementById('player-title');
+  if (titleEl) { titleEl.textContent = "—"; titleEl.classList.remove('scroll'); }
+  const artistEl = document.getElementById('player-artist');
+  if (artistEl) artistEl.textContent = "음악을 추가하세요";
+  
+  const playBtn = document.getElementById('play-btn');
+  if (playBtn) playBtn.textContent = '▶';
+
+  // 내 DB만 다시 로드하기
+  loadSavedTracks(); 
 }

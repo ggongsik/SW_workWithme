@@ -1,13 +1,12 @@
-// ============================================================================
+
 // js/main.js
-// 앱의 진입점(Entry Point). 각 모듈에서 기능을 가져와 전역 스코프에 연결합니다.
-// ============================================================================
+
 
 
 import { initWebSocket } from './network.js';
 import { openCalibration, closeCalibration, startCalibration, togglePostureCorrection } from './pose.js';
 import { 
-  checkLogin, logout, hideUI, restoreUI, togglePanel, closePanel, setTab, setTimeFmt, togglePiP, setUIGlow
+  checkLogin, logout, hideUI, restoreUI, togglePanel, closePanel, setTab, setTimeFmt, togglePiP, setUIGlow,closeReportAndLogout, isSignupMode, toggleSignupMode, handleSignup
 } from './ui.js';
 import { 
   adjRepeat, commitRepeat, numOnly, commitFocus, commitBreak, togglePomo 
@@ -37,6 +36,10 @@ window.setTab = setTab;
 window.setTimeFmt = setTimeFmt;
 window.togglePiP = togglePiP;
 window.setUIGlow = setUIGlow;
+window.closeReportAndLogout = closeReportAndLogout;
+window.isSignupMode = isSignupMode;
+window.toggleSignupMode = toggleSignupMode;
+window.handleSignup = handleSignup;
 
 // [포모도로 타이머]
 window.adjRepeat = adjRepeat;

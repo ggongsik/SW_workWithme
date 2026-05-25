@@ -216,16 +216,119 @@ body{font-family:'Segoe UI',sans-serif;overflow:hidden;background:#000;}
 
 /* LOGIN OVERLAY */
 #login-overlay {
-  position: absolute; inset: 0; z-index: 100;
-  background: #1a1a2e; /* 배경색으로 덮기 */
+  position: absolute; inset: 0; z-index: 100000;
+  background: radial-gradient(circle at center, rgba(10, 30, 60, 0.95) 0%, rgba(5, 15, 30, 0.98) 100%);
+  backdrop-filter: blur(20px); 
   display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 40px; color: #fff; font-family: 'Pretendard', sans-serif;
   transition: opacity 0.5s ease;
 }
-.login-box {
-  background: rgba(5,10,25,0.85); border: 1px solid rgba(0,180,255,0.25);
-  padding: 40px; border-radius: 12px; text-align: center; width: 320px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+
+/* 대제목 눈에 띄는 세리프 폰트로 변경 */
+.login-top-title {
+  position: absolute;
+  top: 50px;
+  width: 100%;
+  text-align: center;
+  font-family: 'Noto Serif KR', serif; /* 눈에 띄는 명조 폰트 적용 */
+  font-size: 52px;
+  font-weight: 900;
+  letter-spacing: -1px;
+  color: #fff;
+  z-index: 10;
 }
+.login-top-title span {
+  color: #7dd3fc;
+  text-shadow: 0 0 15px rgba(125, 211, 252, 0.4);
+}
+
+/* 전체 컨테이너 좌우 배치 */
+.intro-container {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  gap: 80px; /* 좌측 내용과 우측 패널 사이 간격 */
+  width: 100%; max-width: 1200px; margin: 80px auto 0;
+}
+
+/* 좌측 영역 (텍스트 위, 이미지 아래) */
+.intro-left-zone {
+  flex: 1; max-width: 550px; 
+  display: flex; flex-direction: column; 
+  justify-content: center; align-items: flex-start;
+}
+
+.intro-text-zone { margin-bottom: 40px; }
+
+.hero-title {
+  font-size: 48px; font-weight: 800; line-height: 1.25; margin-bottom: 24px;
+  text-shadow: 0 0 20px rgba(125, 211, 252, 0.2);
+}
+.hero-title span { color: #7dd3fc; }
+
+.hero-subtitle {
+  font-size: 16px; color: #a0c0d8; line-height: 1.7; opacity: 0.8;
+}
+
+.intro-art-zone {
+  width: 100%;
+}
+.art-placeholder {
+  width: 100%; height: 320px; 
+  background: url('../models/art_placeholder.webp') no-repeat center; 
+  background-size: cover; border-radius: 12px;
+  border: 1px solid rgba(0, 180, 255, 0.2);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+/* 우측 영역 컨테이너 (빈 껍데기 박스 제거) */
+.intro-right-zone {
+  flex: 0 0 380px; 
+  display: flex; flex-direction: column; justify-content: center; align-items: center;
+}
+
+/* 로그인 박스 자체 디자인 */
+.main-login-box {
+  width: 100%;
+  background: rgba(10, 25, 45, 0.6);
+  border: 1px solid rgba(0, 180, 255, 0.3);
+  border-radius: 16px;
+  padding: 40px 30px;
+  box-shadow: 0 15px 40px rgba(0,0,0,0.5);
+  display: flex; flex-direction: column; gap: 12px;
+  animation: slideUpFade 0.4s ease forwards;
+}
+
+/* 입력창 스타일 */
+.login-input-new {
+  background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(0, 180, 255, 0.2);
+  color: #fff; padding: 14px; border-radius: 8px; font-size: 14px;
+  outline: none; transition: 0.2s; width: 100%; box-sizing: border-box;
+}
+.login-input-new:focus { border-color: #1DB954; }
+
+/* 입장하기 버튼 스타일 */
+.submit-btn-new {
+  width: 100%; background: #1DB954; color: #fff; border: none;
+  padding: 14px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s;
+  font-size: 15px;
+}
+.submit-btn-new:hover { background: #1ed760; }
+
+@keyframes slideUpFade {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.login-form-panel {
+  display: none; position: fixed; top: 50%; left: 50%; 
+  transform: translate(-50%, -50%) scale(0.9);
+  background: rgba(10, 25, 45, 0.85); backdrop-filter: blur(15px);
+  border: 1px solid rgba(0, 180, 255, 0.2); border-radius: 16px;
+  width: 320px; padding: 30px; display: flex; flex-direction: column; gap: 12px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5); transition: 0.3s; opacity: 0;
+}
+.login-form-panel.active { display: flex; transform: translate(-50%, -50%) scale(1); opacity: 1; }
+
+.login-form-header { font-size: 14px; color: #7dd3fc; margin-bottom: 10px; text-align: center; }
 .login-input {
   width: 100%; background: rgba(0,20,40,0.8); border: 1px solid rgba(0,180,255,0.15);
   color: #c8e6ff; padding: 12px; margin-bottom: 15px; border-radius: 6px; outline: none;
@@ -373,4 +476,168 @@ body{font-family:'Segoe UI',sans-serif;overflow:hidden;background:#000;}
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+
+.report-overlay {
+  display: none; position: fixed; inset: 0; 
+  background: rgba(5, 15, 30, 0.6); /* 배경을 반투명하게 만들어 뒤가 살짝 보이게 함 */
+  backdrop-filter: blur(8px); z-index: 99999; 
+  flex-direction: column; align-items: center; justify-content: flex-start;
+  padding-top: 8vh; /* 화면 상단에서 살짝 띄움 */
+}
+
+/* 위에서 스르륵 내려오는 모달 창 */
+.report-container {
+  background: rgba(10, 25, 45, 0.95); 
+  border: 1px solid rgba(0, 180, 255, 0.3); 
+  border-radius: 16px; 
+  width: 85%; max-width: 850px; /* 화면의 1/2 ~ 2/3 정도 크기 */
+  padding: 35px; display: flex; flex-direction: column; gap: 20px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 30px rgba(0, 180, 255, 0.1);
+  /* 애니메이션 초기 상태 (위로 숨김) */
+  transform: translateY(-100vh); 
+  opacity: 0;
+  transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.6s ease;
+}
+
+/* 창이 열릴 때 적용될 클래스 */
+.report-overlay.active .report-container {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.report-title {
+  text-align: center; font-size: 22px; color: #fff; font-weight: 800;
+  letter-spacing: 1px; text-shadow: 0 0 15px rgba(125, 211, 252, 0.4);
+  margin-bottom: 5px;
+}
+
+.report-grid {
+  display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; 
+  gap: 20px; min-height: 350px;
+}
+
+.report-box {
+  background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(0, 180, 255, 0.15); 
+  border-radius: 12px; padding: 20px; display: flex; flex-direction: column;
+}
+.report-box h3 {
+  font-size: 14px; color: #a0c0d8; margin-bottom: 15px; text-align: center; font-weight: bold;
+}
+.report-value {
+  font-size: 40px; font-family: 'Space Mono', monospace; font-weight: bold; 
+  color: #7dd3fc; text-align: center; margin: auto 0;
+  text-shadow: 0 0 15px rgba(125, 211, 252, 0.4);
+}
+.report-sub {
+  font-size: 12px; color: #8fa0ad; text-align: center; margin-top: auto;
+}
+.report-sub span { color: #fff; font-weight: bold; } /* 강조 텍스트 복구 */
+
+.chart-container {
+  display: flex; align-items: flex-end; justify-content: space-around; 
+  flex: 1; border-bottom: 1px solid rgba(0, 180, 255, 0.2); padding-bottom: 5px; height: 100px;
+}
+.chart-bar {
+  width: 35px; background: linear-gradient(to top, #0284c7, #7dd3fc); border-radius: 4px 4px 0 0; 
+  transition: height 1s cubic-bezier(0.2, 0.8, 0.2, 1); box-shadow: 0 0 10px rgba(125,211,252,0.3);
+}
+.chart-labels {
+  display: flex; justify-content: space-around; font-size: 12px; 
+  color: #a0c0d8; margin-top: 10px; font-weight: bold;
+}
+
+.report-btn {
+  margin-top: 10px; padding: 16px; background: #f87171; color: #fff; 
+  border: none; border-radius: 12px; cursor: pointer; font-weight: bold; font-size: 15px; 
+  box-shadow: 0 5px 15px rgba(248, 113, 113, 0.3); transition: 0.2s;
+}
+.report-btn:hover { background: #ef4444; transform: translateY(-2px); }
+
+.login-top-title {
+  position: absolute;
+  top: 50px;
+  width: 100%;
+  text-align: center;
+  font-size: 42px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: #fff;
+  z-index: 10;
+}
+.login-top-title span {
+  color: #7dd3fc; /* 테마에 맞춘 네온 블루 */
+  text-shadow: 0 0 15px rgba(125, 211, 252, 0.4);
+}
+
+/* 2. 전체 레이아웃 (위치 미세 조정) */
+.intro-container {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  gap: 60px; /* 좌우 간격 */
+  width: 100%; max-width: 1100px; margin: 60px auto 0;
+}
+.intro-text-zone { flex: 1; max-width: 500px; }
+.intro-art-zone { flex: 1; display: flex; justify-content: center; align-items: center; }
+
+/* 3. 인라인(작은) 로그인 폼 */
+.inline-login-form {
+  display: none; /* 초기에는 숨김 */
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(10, 25, 45, 0.6);
+  border: 1px solid rgba(0, 180, 255, 0.3);
+  border-radius: 12px;
+  padding: 16px;
+  width: 100%;
+  max-width: 280px; /* 초록 버튼의 약 2배 정도 되는 콤팩트한 크기 */
+  box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+  animation: slideUpFade 0.3s ease forwards;
+}
+.inline-input {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--border);
+  color: #fff;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  outline: none;
+  transition: 0.2s;
+}
+.inline-input:focus { border-color: #1DB954; }
+
+.inline-btn-row { display: flex; gap: 8px; margin-top: 4px; }
+.inline-submit-btn {
+  flex: 2; background: #1DB954; color: #fff; border: none;
+  padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s;
+}
+.inline-submit-btn:hover { background: #1ed760; }
+.inline-cancel-btn {
+  flex: 1; background: transparent; color: #a0c0d8; border: 1px solid var(--border);
+  padding: 12px; border-radius: 8px; cursor: pointer; transition: 0.2s;
+}
+.inline-cancel-btn:hover { background: rgba(255,255,255,0.1); }
+
+@keyframes slideUpFade {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.login-form-panel { display: none !important; }
+
+#ui-layer {
+  position: absolute;
+  top: 0; 
+  left: 0; 
+  width: 100%;
+  pointer-events: none; 
+}
+
+#topbar {
+  padding: 20px; 
+}
+
+#clock-block {
+  pointer-events: auto; 
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.8); 
 }
