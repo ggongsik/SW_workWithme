@@ -3,12 +3,16 @@
 // 로그인, UI 토글, 패널 제어, 환경설정, 드래그 로직, 시계 및 PiP/네온 효과
 // ============================================================================
 
+import { reloadPlaylistForUser } from './player.js';
+import { registerUser, loginUser } from './firebase.js';
+
 let timeFmt = 12; // 시간 형식 (12시/24시)
 
 // PiP 모드와 메인 UI가 공유할 현재 상태 변수
 export let currentGlowState = 'idle';
+export let isSignupMode = false;
 
-// ── 1. 시계 로직 (내부 전용) ──
+// ── 시계 로직  ──
 function updateClock() {
   const timeEl = document.getElementById('clock-time');
   const dateEl = document.getElementById('clock-date');
@@ -29,7 +33,7 @@ function updateClock() {
   dateEl.textContent = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + '(' + days[d.getDay()] + ')';
 }
 
-// ── js/ui.js : makeDraggable 함수 수정 ──
+//  드래그기능
 function makeDraggable(el, handle) {
   handle = handle || el;
   handle.style.touchAction = 'none'; 
@@ -41,7 +45,6 @@ function makeDraggable(el, handle) {
     if (e.target.closest('button, input, textarea, select, [contenteditable]')) return;
     e.preventDefault();
     
-    // ✨ 1. 전역 변수로 "나 지금 드래그 중이야!" 라고 3D 화면에 소리칩니다.
     window.isUIDragging = true; 
 
     // 간섭 방지 유리판
@@ -67,7 +70,7 @@ function makeDraggable(el, handle) {
     };
 
     const onUp = () => {
-      // ✨ 2. 마우스를 놓으면 다시 3D 렌더링을 켭니다.
+      // 마우스를 놓으면 다시 3D 렌더링을 켭니다.
       window.isUIDragging = false; 
 
       const finalRect = el.getBoundingClientRect();
@@ -89,7 +92,6 @@ function makeDraggable(el, handle) {
   });
 }
 
-// DOM이 로드되면 드래그 요소들과 시계, 그리고 메인 화면 네온 UI 세팅
 window.addEventListener('DOMContentLoaded', () => {
   setInterval(updateClock, 1000); 
   updateClock();
@@ -110,32 +112,115 @@ window.addEventListener('DOMContentLoaded', () => {
 
 
 // ============================================================================
-// 🌟 3. 외부로 내보내는 기능들 (export)
+// 외부로 내보내는 기능들 (export)
 // ============================================================================
 
-export function checkLogin() { /* ... 기존과 동일 ... */ 
-  const id = document.getElementById("lofi-id").value;
-  const pw = document.getElementById("lofi-pw").value;
-  if (id === "admin" && pw === "1234") {
-    const overlay = document.getElementById("login-overlay");
-    overlay.style.opacity = "0"; 
-    setTimeout(() => { overlay.style.display = "none"; }, 500);
-  } else {
-    alert("아이디는 admin, 비밀번호는 1234를 입력해주세요.");
+export async function checkLogin() { 
+  const email = document.getElementById("lofi-id").value.trim();
+  const pw = document.getElementById("lofi-pw").value.trim();
+
+  // 테스트용 admin 계정 유지
+  if (email === "admin" && pw === "1234") {
+    localStorage.setItem('lofi_user_id', 'admin'); 
+    reloadPlaylistForUser(); 
+    closeLoginOverlay();
+    return;
+  }
+
+  try {
+    const userCredential = await loginUser(email, pw);
+    
+    localStorage.setItem('lofi_user_id', userCredential.user.email); 
+    reloadPlaylistForUser(); 
+    
+    console.log("로그인 성공!", userCredential.user.email);
+    closeLoginOverlay();
+
+  } catch (error) {
+    console.error("로그인 에러:", error);
+    alert("이메일이나 비밀번호가 올바르지 않습니다.");
   }
 }
 
-export function logout() { /* ... 기존과 동일 ... */
-  const isConfirmed = confirm("정말 종료하시겠습니까? (로그아웃됩니다)");
+export function logout() {
+  const isConfirmed = confirm("정말 종료하시겠습니까? (오늘의 리포트가 생성됩니다)");
   if (!isConfirmed) return; 
+  
   if (window.togglePlay && document.getElementById('play-btn').textContent === '⏸') {
     window.togglePlay(); 
   }
-  document.getElementById("lofi-id").value = "";
-  document.getElementById("lofi-pw").value = "";
-  const overlay = document.getElementById("login-overlay");
-  overlay.style.display = "flex"; 
-  setTimeout(() => overlay.style.opacity = "1", 10);
+
+  // 로그아웃 창으로 바로 가지 않고 리포트 창 띄우기
+  showDailyReport();
+}
+
+// 오늘의 리포트 생성 및 표시 함수
+function showDailyReport() {
+  //  임시 통계 데이터
+  const mockData = {
+    count: Math.floor(Math.random() * 15) + 5,      // 발생 횟수 (5~20회)
+    totalTime: Math.floor(Math.random() * 40) + 10, // 총 시간 (10~50분)
+    maxTime: Math.floor(Math.random() * 15) + 5,    // 최장 지속 시간 (5~20분)
+    avgDepth: (Math.random() * 3 + 2).toFixed(1),   // 무너짐 정도 (2.0~5.0cm)
+    chart: [
+      Math.floor(Math.random() * 30) + 10, // 오전 빈도
+      Math.floor(Math.random() * 50) + 20, // 오후 빈도
+      Math.floor(Math.random() * 20) + 5   // 저녁 빈도
+    ]
+  };
+
+  // 텍스트 업데이트
+  document.getElementById('report-count').innerHTML = `${mockData.count}<span style="font-size:16px">회</span>`;
+  document.getElementById('report-total-time').innerHTML = `${mockData.totalTime}<span style="font-size:16px">분</span>`;
+  document.getElementById('report-max-time').textContent = `${mockData.maxTime}분`;
+  document.getElementById('report-depth').textContent = `-${mockData.avgDepth}cm`;
+
+  // 3시간대별 빈도 막대 그래프 렌더링
+  const chartContainer = document.getElementById('report-chart');
+  chartContainer.innerHTML = '';
+  const maxVal = Math.max(...mockData.chart, 50); // 최대 높이 기준
+  
+  mockData.chart.forEach(val => {
+    const heightPct = (val / maxVal) * 100;
+    // 애니메이션 효과를 위해 처음엔 height: 0으로 생성
+    const bar = document.createElement('div');
+    bar.className = 'chart-bar';
+    bar.style.height = '0%';
+    bar.title = `${val}회`;
+    chartContainer.appendChild(bar);
+    
+    // 약간의 딜레이 후 실제 높이 적용
+    setTimeout(() => { bar.style.height = `${heightPct}%`; }, 100);
+  });
+
+  // 리포트 오버레이 
+  const overlay = document.getElementById('report-overlay');
+  overlay.style.display = 'flex'; 
+  
+  setTimeout(() => {
+    overlay.classList.add('active');
+  }, 10);
+}
+
+// 리포트 확인 후 최종 로그아웃 
+export function closeReportAndLogout() {
+  const overlay = document.getElementById('report-overlay');
+  overlay.classList.remove('active'); 
+
+  localStorage.removeItem('lofi_user_id');
+  reloadPlaylistForUser(); 
+  
+  setTimeout(() => {
+    overlay.style.display = 'none';
+    
+    document.getElementById("lofi-id").value = "";
+    document.getElementById("lofi-pw").value = "";
+    if (window.closeLoginForm) window.closeLoginForm(); 
+
+    const loginOverlay = document.getElementById("login-overlay");
+    loginOverlay.style.display = "flex"; 
+    setTimeout(() => loginOverlay.style.opacity = "1", 10);
+  }, 600); 
 }
 
 export function togglePanel(id, btn) {
@@ -185,17 +270,15 @@ export function setTab(tab, el) {
 
 
 
-// ============================================================================
-// 🌟 4. 네온 효과 및 Document PiP 모드
-// ============================================================================
+// 네온 효과 및 Document PiP 모드
 
 export let pipWindow = null;
 
-// ── 1. 외부(콘솔, 웹소켓)에서 상태를 바꿀 때 호출할 함수 ──
+// 외부(콘솔, 웹소켓)에서 상태를 바꿀 때 호출할 함수
 export function setUIGlow(state) {
   currentGlowState = state; 
   
-  // 메인 화면 전체 테두리 네온 효과 조작 (존재할 경우)
+  // 메인 화면 전체 테두리 네온 효과 조작
   const screenBorder = document.getElementById('warning-border'); 
   if (screenBorder) {
     if (state === 'idle') {
@@ -206,11 +289,11 @@ export function setUIGlow(state) {
       screenBorder.style.boxShadow = 'inset 0 0 100px rgba(248, 113, 113, 0.9)';
     }
   }
-  console.log(`✨ UI 상태가 변경되었습니다: ${state}`);
+  console.log(` UI 상태가 변경되었습니다: ${state}`);
 }
 
 
-// ── 2. PiP 내부 네온 테두리 애니메이션 (CSS 기반) ──
+// PiP 내부 네온 테두리 애니메이션
 function setupPipNeon(pw) {
   const neon = pw.document.getElementById('pip-neon');
   if (!neon) return;
@@ -246,7 +329,7 @@ function setupPipNeon(pw) {
 }
 
 
-// ── 3. Document PiP 토글 기능 ──
+// Document PiP 토글 기능
 export async function togglePiP() {
   if (!('documentPictureInPicture' in window)) {
     alert('Document PiP API를 지원하지 않는 브라우저입니다.');
@@ -259,10 +342,10 @@ export async function togglePiP() {
       return;
     }
 
-    // 창 크기 조절 (가로로 더 길게 하면 좋습니다)
+    // 창 크기 조절 
     pipWindow = await documentPictureInPicture.requestWindow({ width: 320, height: 240 });
 
-    // CSS 복사 로직 (기존 유지)
+    // CSS 복사 로직 
     [...document.styleSheets].forEach(sheet => {
       try {
         const css = [...sheet.cssRules].map(r => r.cssText).join('');
@@ -288,7 +371,7 @@ export async function togglePiP() {
         <div class="pip-player-box" style="flex-direction: column; height: auto; gap: 4px; align-items: stretch;">
           <div style="display: flex; align-items: center; gap: 8px;">
             <div id="player-info" style="flex: 1; min-width: 0;">
-              <div id="pip-song-title">🎵 음악을 선택하세요</div>
+              <div id="pip-song-title"> 음악을 선택하세요</div>
               <div id="pip-song-artist">대기 중...</div>
             </div>
             <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
@@ -321,3 +404,65 @@ export async function togglePiP() {
     console.error('PiP 실행 실패:', err);
   }
 }
+
+
+//로그인 ↔ 회원가입 모드 전환 함수
+export function toggleSignupMode() {
+  isSignupMode = !isSignupMode;
+  
+  const title = document.getElementById('form-title');
+  const pwConfirm = document.getElementById('lofi-pw-confirm');
+  const submitBtn = document.getElementById('submit-btn');
+  const toggleText = document.getElementById('toggle-mode-text');
+
+  if (isSignupMode) {
+    // 회원가입 모드로 변신
+    title.textContent = "회원가입";
+    pwConfirm.style.display = "block";
+    submitBtn.textContent = "가입하기";
+    submitBtn.onclick = handleSignup; // 버튼 누르면 회원가입 함수 실행
+    toggleText.innerHTML = `이미 계정이 있으신가요? <a href="#" onclick="toggleSignupMode()" style="color:#1DB954; text-decoration:none; font-weight:bold;">로그인</a>`;
+  } else {
+    // 로그인 모드로 변신
+    title.textContent = "로그인";
+    pwConfirm.style.display = "none";
+    submitBtn.textContent = "입장하기";
+    submitBtn.onclick = checkLogin; // 버튼 누르면 로그인 함수 실행
+    toggleText.innerHTML = `계정이 없으신가요? <a href="#" onclick="toggleSignupMode()" style="color:#1DB954; text-decoration:none; font-weight:bold;">회원가입</a>`;
+  }
+}
+
+//  회원가입 처리 함수 
+export async function handleSignup() {
+  const email = document.getElementById("lofi-id").value.trim();
+  const pw = document.getElementById("lofi-pw").value.trim();
+  const pwConfirm = document.getElementById("lofi-pw-confirm").value.trim();
+
+  if (!email || !pw || !pwConfirm) { alert("모든 항목을 입력해주세요."); return; }
+  if (pw !== pwConfirm) { alert("비밀번호가 일치하지 않습니다."); return; }
+  if (pw.length < 6) { alert("비밀번호는 6자리 이상이어야 합니다."); return; }
+
+  try {
+    // 🔥 firebase.js 의 함수 호출
+    const userCredential = await registerUser(email, pw);
+    console.log("가입 성공!", userCredential.user);
+    
+    alert("회원가입이 완료되었습니다! 로그인해 주세요.");
+    document.getElementById("lofi-pw").value = "";
+    document.getElementById("lofi-pw-confirm").value = "";
+    toggleSignupMode(); 
+
+  } catch (error) {
+    console.error("회원가입 에러:", error);
+    if (error.code === 'auth/email-already-in-use') alert("이미 가입된 이메일입니다.");
+    else if (error.code === 'auth/invalid-email') alert("올바른 이메일 형식이 아닙니다.");
+    else alert("회원가입 중 오류가 발생했습니다.");
+  }
+}
+function closeLoginOverlay() {
+  const overlay = document.getElementById("login-overlay");
+  overlay.style.opacity = "0"; 
+  setTimeout(() => { overlay.style.display = "none"; }, 500);
+  if (window.restoreUI) window.restoreUI();
+}
+

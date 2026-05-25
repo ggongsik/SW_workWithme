@@ -17,7 +17,7 @@ let activeSource = 'local';
 let ytProgressInterval = null;
 
 
-// ✨ 오디오 상태 동기화 (재생/정지 버튼 엇갈림 버그 완벽 해결)
+// 오디오 상태 동기화
 audio.addEventListener('play', () => syncPlayButton(true));
 audio.addEventListener('pause', () => syncPlayButton(false));
 
@@ -31,7 +31,7 @@ function syncPlayButton(isPlaying) {
   }
 }
 
-// ── 2. YouTube IFrame API ─────────────────────────────────────────────────────
+//YouTube IFrame API 
 let ytPlayer = null;
 let ytReady  = false;
 
@@ -42,7 +42,6 @@ window.onYouTubeIframeAPIReady = () => {
     events: {
       onReady: () => { 
         ytReady = true; 
-        // ✨ 유튜브 기능이 켜졌을 때, 이미 0번 트랙(유튜브)이 대기 중이라면 영상 장전!
         if (curTrack >= 0 && tracks[curTrack] && tracks[curTrack].type === 'youtube') {
           ytPlayer.cueVideoById({ videoId: tracks[curTrack].ytId, suggestedQuality: 'small' });
         }
@@ -96,7 +95,7 @@ function startYTProgressLoop() {
   }, 500); // 0.5초마다 갱신
 }
 
-// ── 3. IndexedDB (드래그 앤 드롭 재정렬 포함) ──────────────────────────────
+// IndexedDB 
 const dbName = 'LofiMusicDB';
 let db;
 const request = indexedDB.open(dbName, 1);
@@ -113,41 +112,46 @@ request.onsuccess = function(e) {
 function loadSavedTracks() {
   const tx = db.transaction('tracks', 'readonly');
   const store = tx.objectStore('tracks');
+  const currentUserId = localStorage.getItem('lofi_user_id') || 'guest';
+
   store.getAll().onsuccess = function(req) {
     tracks.length = 0;
     req.target.result.forEach(item => {
-      if (item.type === 'youtube') {
-        tracks.push({ id: item.id, t: item.name, a: item.artist, type: 'youtube', ytId: item.ytId });
-      } else {
-        // fileBlob을 같이 캐싱해둬야 드래그로 순서를 바꿀 때 DB에 다시 넣을 수 있습니다.
-        tracks.push({ id: item.id, t: item.name, a: item.artist, url: URL.createObjectURL(item.fileBlob), type: item.type || 'local', fileBlob: item.fileBlob });
+      if (item.userId === currentUserId || (!item.userId && currentUserId === 'guest')) {
+        if (item.type === 'youtube') {
+          tracks.push({ id: item.id, t: item.name, a: item.artist, type: 'youtube', ytId: item.ytId });
+        } else {
+          tracks.push({ id: item.id, t: item.name, a: item.artist, url: URL.createObjectURL(item.fileBlob), type: item.type || 'local', fileBlob: item.fileBlob });
+        }
       }
     });
-    
     renderPlaylist();
-    
-    if (tracks.length > 0 && curTrack < 0) {
-      loadTrack(0, false);
-    }
   };
 }
 
-// 드래그로 순서가 바뀌었을 때 DB를 통째로 갱신하는 함수
 function rebuildDatabase() {
   if (!db) return;
   const tx = db.transaction('tracks', 'readwrite');
   const store = tx.objectStore('tracks');
-  store.clear().onsuccess = () => {
+  const currentUserId = localStorage.getItem('lofi_user_id') || 'guest';
+
+  store.getAll().onsuccess = function(e) {
+    e.target.result.forEach(item => {
+      if (item.userId === currentUserId || (!item.userId && currentUserId === 'guest')) {
+        store.delete(item.id);
+      }
+    });
+    
     tracks.forEach(t => {
-      const obj = { name: t.t, artist: t.a, type: t.type };
+      const obj = { name: t.t, artist: t.a, type: t.type, userId: currentUserId };
       if (t.type === 'youtube') obj.ytId = t.ytId;
       else obj.fileBlob = t.fileBlob; 
-      store.add(obj).onsuccess = (e) => { t.id = e.target.result; }; // 새 ID 발급
+      store.add(obj).onsuccess = (ev) => { t.id = ev.target.result; };
     });
   };
 }
 
-// ── 4. 로컬/유튜브 플레이어 내부 로직 ───────────────────────────────────────
+// 로컬/유튜브 플레이어 내부 로직
 function updateTitleUI(title, artist) {
   const titleEl = document.getElementById('player-title');
   const infoEl = document.getElementById('player-info');
@@ -159,10 +163,8 @@ function updateTitleUI(title, artist) {
 
     requestAnimationFrame(() => {
       if (titleEl.scrollWidth > infoEl.clientWidth) {
-        // ✨ 마법의 핵심: 삐져나간 길이를 계산해서 음수(왼쪽 이동) 픽셀로 만듭니다.
         const dist = infoEl.clientWidth - titleEl.scrollWidth;
         
-        // CSS 애니메이션에게 "이만큼만 이동해!" 라고 거리를 알려줍니다.
         titleEl.style.setProperty('--scroll-dist', dist + 'px');
         titleEl.classList.add('scroll');
       } else {
@@ -174,7 +176,6 @@ function updateTitleUI(title, artist) {
   const artistEl = document.getElementById('player-artist');
   if (artistEl) artistEl.textContent = artist;
 
-  // ✨ PiP (미니 창) 모드에도 똑같은 원리 적용
   if (pipWindow && !pipWindow.closed) {
     const pt = pipWindow.document.getElementById('pip-song-title');
     const pa = pipWindow.document.getElementById('pip-song-artist');
@@ -210,7 +211,6 @@ function loadTrack(i, autoplay = true) {
     if (!audio.paused) audio.pause();
     activeSource = 'youtube';
     
-    // 유튜브 API가 함수까지 제대로 불러왔는지 확인
     if (ytPlayer && ytReady && typeof ytPlayer.loadVideoById === 'function') {
       if (autoplay) {
         ytPlayer.loadVideoById({ videoId: t.ytId, suggestedQuality: 'small' });
@@ -219,7 +219,6 @@ function loadTrack(i, autoplay = true) {
       }
     }
     
-    // 자동 재생이 아닐 땐 확실하게 플레이 버튼(▶)으로 멈춰둠
     if (!autoplay) syncPlayButton(false);
     
   } else if (t.url) {
@@ -276,7 +275,6 @@ function renderPlaylist() {
     return;
   }
 
-  // ✨ 드래그 가능하도록 draggable="true" 와 고유 데이터(data-idx) 부여
   plBody.innerHTML = tracks.map((t, i) => `
     <div class="pl-item${i === curTrack ? ' playing' : ''}" data-idx="${i}" draggable="true">
       <span class="pl-num">${i === curTrack ? '▶' : i + 1}</span>
@@ -289,12 +287,10 @@ function renderPlaylist() {
   `).join('');
 }
 
-// ✨ 이벤트 위임(Event Delegation)을 통한 클릭 및 드래그 앤 드롭 구현
 window.addEventListener('DOMContentLoaded', () => {
   const plBody = document.getElementById('pl-body');
   if (!plBody) return;
 
-  // 클릭하여 재생 및 제거하기
   plBody.addEventListener('click', (e) => {
     const item = e.target.closest('.pl-item');
     if (!item) return;
@@ -320,13 +316,12 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   plBody.addEventListener('dragover', (e) => {
-    e.preventDefault(); // 필수: 드롭을 허용함
+    e.preventDefault(); 
     const draggingItem = plBody.querySelector('.dragging');
     const targetItem = e.target.closest('.pl-item');
     if (targetItem && targetItem !== draggingItem) {
       const rect = targetItem.getBoundingClientRect();
       const offset = e.clientY - rect.top;
-      // 마우스가 항목의 절반을 넘어가면 밑으로, 아니면 위로 밀어냄
       if (offset > rect.height / 2) targetItem.after(draggingItem);
       else targetItem.before(draggingItem);
     }
@@ -336,14 +331,13 @@ window.addEventListener('DOMContentLoaded', () => {
     const item = e.target.closest('.pl-item');
     if (item) item.classList.remove('dragging');
 
-    // DOM에 배치된 순서대로 tracks 배열을 재정렬합니다.
     const newTracks = [];
     let newCurTrack = -1;
     const items = plBody.querySelectorAll('.pl-item');
     items.forEach((node, index) => {
       const oldIdx = parseInt(node.dataset.idx);
       newTracks.push(tracks[oldIdx]);
-      if (oldIdx === curTrack) newCurTrack = index; // 현재 재생 중인 곡의 인덱스도 갱신
+      if (oldIdx === curTrack) newCurTrack = index; 
     });
 
     tracks.length = 0;
@@ -376,25 +370,23 @@ audio.addEventListener('timeupdate', () => {
   }
 });
 
-// ── 5. 외부 export ────────────────────────────────────────────────────────────
+// 외부 export 
 
 export function togglePlay() {
   if (!tracks.length) return;
   if (curTrack < 0) { loadTrack(0); return; }
 
   if (tracks[curTrack].type === 'youtube') {
-    // ytPlayer가 준비되었는지 확실히 체크
     if (ytPlayer && ytReady && typeof ytPlayer.getPlayerState === 'function') {
       const state = ytPlayer.getPlayerState();
       
-      // YT.PlayerState 대신 안전하게 '숫자'를 직접 사용합니다.
       // 1: 재생 중, 2: 일시 정지, 5: 장전됨(Cue), -1: 시작 전
       if (state === 1) {
         ytPlayer.pauseVideo();
       } else if (state === 2) {
         ytPlayer.playVideo();
       } else {
-        // 대기 중(5)이거나 에러/시작 전(-1)이라면 무조건 영상을 새로 불러와서 '강제 재생' 때림!
+        // 대기 중(5)이거나 에러/시작 전(-1)이라면 무조건 영상을 새로 불러와서 '강제 재생'
         ytPlayer.loadVideoById({ videoId: tracks[curTrack].ytId, suggestedQuality: 'small' });
       }
     }
@@ -451,6 +443,7 @@ export function addFiles(files) {
   const audioExts = /\.(mp3|wav|flac|ogg|m4a|aac|opus|wma)$/i;
   const tx = db.transaction('tracks', 'readwrite');
   const store = tx.objectStore('tracks');
+  const currentUserId = localStorage.getItem('lofi_user_id') || 'guest'; // ✨ 추가
   let added = 0;
 
   Array.from(files)
@@ -459,7 +452,7 @@ export function addFiles(files) {
     .forEach(f => {
       const name = f.name.replace(/\.[^.]+$/, '');
       const artist = f.webkitRelativePath ? f.webkitRelativePath.split('/')[0] : '로컬 파일';
-      const req = store.add({ name, artist, fileBlob: f, type: 'local' });
+      const req = store.add({ name, artist, fileBlob: f, type: 'local', userId: currentUserId });
 
       req.onsuccess = function(e) {
         tracks.push({ id: e.target.result, t: name, a: artist, url: URL.createObjectURL(f), type: 'local', fileBlob: f });
@@ -491,7 +484,9 @@ export async function addYouTubeToPlaylist() {
 
   if (db) {
     const store = db.transaction('tracks', 'readwrite').objectStore('tracks');
-    store.add({ name: title, artist: artist, type: 'youtube', ytId: id }).onsuccess = function(e) {
+    const currentUserId = localStorage.getItem('lofi_user_id') || 'guest'; // ✨ 추가
+    
+    store.add({ name: title, artist: artist, type: 'youtube', ytId: id, userId: currentUserId }).onsuccess = function(e) {
       tracks.push({ id: e.target.result, t: title, a: artist, type: 'youtube', ytId: id });
       renderPlaylist();
       urlInput.value = "";
@@ -505,10 +500,10 @@ export function refreshPlayerUI() {
   if (curTrack < 0 || !tracks[curTrack]) return;
   const t = tracks[curTrack];
   
-  // 1. 제목 및 아티스트 업데이트 
+  // 제목 및 아티스트 업데이트 
   updateTitleUI(t.t, t.a);
   
-  // 2. 재생 버튼 상태 강제 동기화
+  // 재생 버튼 상태 강제 동기화
   let isPlaying = false;
   if (activeSource === 'local') {
     isPlaying = !audio.paused;
@@ -516,4 +511,25 @@ export function refreshPlayerUI() {
     isPlaying = (ytPlayer.getPlayerState() === YT.PlayerState.PLAYING);
   }
   syncPlayButton(isPlaying);
+}
+
+export function reloadPlaylistForUser() {
+  if (!db) return;
+  
+  // 기존 재생 중이던 음악 정지
+  if (audio && !audio.paused) audio.pause();
+  if (ytPlayer && ytReady && ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) ytPlayer.pauseVideo();
+  
+  // UI 초기화
+  curTrack = -1;
+  const titleEl = document.getElementById('player-title');
+  if (titleEl) { titleEl.textContent = "—"; titleEl.classList.remove('scroll'); }
+  const artistEl = document.getElementById('player-artist');
+  if (artistEl) artistEl.textContent = "음악을 추가하세요";
+  
+  const playBtn = document.getElementById('play-btn');
+  if (playBtn) playBtn.textContent = '▶';
+
+  // 내 DB만 다시 로드하기
+  loadSavedTracks(); 
 }

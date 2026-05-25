@@ -5,7 +5,7 @@
 
 import { sendPoseData, sendCommand } from './network.js';
 
-// ── 1. 상태 변수 세팅 ──
+// 상태 변수 세팅 
 let currentLandmarks = null;    // 현재 프레임의 랜드마크 좌표
 let baselineLandmarks = null;   // 10초 캘리브레이션으로 저장된 기준 좌표
 
@@ -15,7 +15,7 @@ let trackingTimer = null;       // 1초 단위 백그라운드 트래킹 타이�
 
 
 // ============================================================================
-// ── 2. MediaPipe Pose 초기화 및 설정 ──
+// MediaPipe Pose 초기화 및 설정
 // ============================================================================
 const pose = new Pose({
   locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
@@ -60,15 +60,13 @@ pose.onResults((results) => {
 
 
 // ============================================================================
-// ── 3. 자세 트래킹 및 좌표 전송 로직 ──
+// 자세 트래킹 및 좌표 전송 로직 
 // ============================================================================
-// ── 🌟 자세 트래킹 및 ArrayBuffer 바이너리 전송 ──
+//자세 트래킹 및 ArrayBuffer 바이너리 전송 
 
-// 파일 상단에 재사용할 캔버스를 한 번만 생성해 둡니다.
 const encodeCanvas = document.createElement('canvas');
 encodeCanvas.width = 1080; 
 encodeCanvas.height = 720;
-// 하드웨어 가속 최적화 플래그 (willReadFrequently)
 const encodeCtx = encodeCanvas.getContext('2d', { willReadFrequently: true });
 
 function startPostureTracking() {
@@ -77,7 +75,7 @@ function startPostureTracking() {
   trackingTimer = setInterval(() => {
     if (!currentLandmarks) return;
 
-    // 1. 좌표 데이터 추출
+    //좌표 데이터 추출
     const targetPoints = [0, 11, 12];
     const payloadPoints = {};
 
@@ -101,12 +99,11 @@ function startPostureTracking() {
 }
 
 // ============================================================================
-// 4. 외부로 내보내는 기능들 (export)
+// 외부로 내보내는 기능
 // ============================================================================
 
 export let isTracking = false; 
 
-// ✨ 추가: 웹캠 하드웨어 전원을 완전히 차단하는 함수
 function stopCamera() {
   if (calibCamera) {
     calibCamera.stop();
@@ -114,7 +111,6 @@ function stopCamera() {
   }
   const videoEl = document.getElementById('calib-video');
   if (videoEl && videoEl.srcObject) {
-    // 쥐고 있는 모든 미디어 트랙(영상, 오디오)을 강제로 정지시킵니다.
     videoEl.srcObject.getTracks().forEach(track => track.stop());
     videoEl.srcObject = null;
   }
@@ -127,7 +123,6 @@ export function openCalibration() {
   
   const videoEl = document.getElementById('calib-video');
   
-  // 창을 열 때마다 카메라를 새롭게 켭니다.
   if (!calibCamera) {
     calibCamera = new Camera(videoEl, {
       onFrame: async () => { await pose.send({ image: videoEl }); },
@@ -150,11 +145,8 @@ export function closeCalibration() {
     baseBtn.innerText = "기본 자세 설정";
   }
 
-  // 현재 '트래킹(자세 교정)' 중이 아니라면 카메라 전원을 내립니다!
-  // 트래킹 중일 때 창을 닫으면 백그라운드 작동을 위해 카메라는 켜둡니다.
   if (!isTracking) {
     stopCamera();
-    //캘리브레이션 도중에 창을 닫아버린 경우, 임시로 켜둔 전송 루프도 같이 꺼줍니다.
     if (trackingTimer) {
       clearInterval(trackingTimer);
       trackingTimer = null;
@@ -181,11 +173,9 @@ export function startCalibration() {
   let count = 10;
   baseBtn.innerText = `측정 중... (${count}초 남음)`;
 
-  // 백엔드에 캘리브레이션 모드로 진입하라고 텍스트 명령 전송
   sendCommand("start_calibration");
   
   const wasTracking = isTracking;
-  // 교정 시작을 안 한 상태라면 임시로 전송 루프 켜기
   if (!wasTracking) {
     startPostureTracking();
   }
@@ -199,7 +189,6 @@ export function startCalibration() {
       
       baselineLandmarks = JSON.parse(JSON.stringify(currentLandmarks));
       
-      // 10초 타이머 종료 시 백엔드 상태를 모니터링으로 전환
       sendCommand("stop_calibration");
       
       baseBtn.innerText = "측정 완료! ✓";
@@ -228,7 +217,7 @@ export function togglePostureCorrection() {
   const toggleBtn = document.getElementById('calib-toggle-btn');
   
   if (!isTracking) {
-    // 🟢 트래킹 켜기
+    // 트래킹 켜기
     isTracking = true;
     toggleBtn.innerText = "자세 교정 종료";
     toggleBtn.style.background = "rgba(255, 60, 80, 0.2)"; 
@@ -240,7 +229,7 @@ export function togglePostureCorrection() {
     
     closeCalibration(); 
   } else {
-    // 🔴 트래킹 끄기
+    // 트래킹 끄기
     isTracking = false;
     toggleBtn.innerText = "자세 교정 시작";
     toggleBtn.style.background = ""; 
@@ -255,12 +244,10 @@ export function togglePostureCorrection() {
     if (window.setUIGlow) window.setUIGlow('idle');
     if (window.change3DPose) window.change3DPose('idle');
 
-    // 백엔드에 현재 세션을 저장하고 종료하라고 알림!
     sendCommand("stop_session");
 
     console.log("⏹️ 자세 교정 종료됨!");
     
-    //자세 교정을 종료할 때도 창을 닫으면서 카메라를 확실하게 꺼줍니다.
     closeCalibration();
   }
 }

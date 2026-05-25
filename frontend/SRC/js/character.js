@@ -81,15 +81,13 @@ const POSES = {
 const loader = new GLTFLoader();
 loader.register((p) => new VRMLoaderPlugin(p));
 
-// ── 1. 캐릭터 로드 ──
+// 캐릭터 로드
 export function loadCharacter(scene) {
-  // 경로가 다를 경우 './HatsuneMikuNT.vrm' 또는 '../assets/HatsuneMikuNT.vrm' 등으로 수정하세요.
   loader.load('./models/HatsuneMikuNT.vrm', 
     (gltf) => {
       const vrm = gltf.userData.vrm;
       VRMUtils.rotateVRM0(vrm);
       
-      // ✨ 전역 객체에 등록하여 scene.js가 접근할 수 있게 합니다.
       window.currentVRM = vrm; 
 
       vrm.scene.position.set(4.300, -2.330, 0.470);
@@ -98,12 +96,11 @@ export function loadCharacter(scene) {
       
       scene.add(vrm.scene);
 
-      // ✨ 로드가 완료되자마자 강제로 'idle' 포즈 적용
       change3DPose('idle'); 
       console.log("캐릭터 로드 완료 및 IDLE 포즈 적용됨");
     },
     (progress) => {
-      // 로딩 프로그레스 (선택사항)
+
     },
     (error) => {
       console.error('캐릭터 로딩 실패:', error);
@@ -111,15 +108,14 @@ export function loadCharacter(scene) {
   );
 }
 
-// ── 2. 캐릭터 업데이트 ──
+// 캐릭터 업데이트
 export function updateCharacter(delta) {
-  // ✨ 기존 변수명 vrm 대신 window.currentVRM을 사용해야 에러가 안 납니다!
   if (window.currentVRM) {
     window.currentVRM.update(delta);
   }
 }
 
-// ── 3. 포즈 변경 함수 ──
+//  포즈 변경 함수
 export function change3DPose(poseName) {
   if (!window.currentVRM) return;
   const pose = POSES[poseName];
@@ -129,16 +125,15 @@ export function change3DPose(poseName) {
     return;
   }
   
-  // 뼈대 데이터를 임시 객체에 담아 배열(캐싱) 형태로 전환
+  // 뼈대 데이터를 임시 객체에 담아 배열 형태로 전환
   let targetPose = {};
   for (const [bname, euler] of Object.entries(pose.bones)) {
     targetPose[bname] = { x: euler.x, y: euler.y, z: euler.z };
   }
   
-  // ✨ scene.js의 보간 애니메이션이 읽을 수 있도록 전역 배열에 업데이트
   window.targetPoseEntries = Object.entries(targetPose); 
   
-  // 표정(얼굴) 즉시 변경
+  // 표정 변경
   if (window.currentVRM.expressionManager) {
     ['happy', 'sad', 'angry', 'surprised', 'neutral'].forEach(e => { 
       try { window.currentVRM.expressionManager.setValue(e, 0); } catch (_) {} 

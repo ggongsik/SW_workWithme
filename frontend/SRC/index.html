@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Lofi Space</title>
 
-  <!-- MediaPipe 라이브러리 (기존과 동일하게 유지) -->
+
+  <!-- MediaPipe 라이브러리 -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script> 
@@ -16,12 +17,13 @@
     "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js",
       "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/",
-      "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3.1.2/lib/three-vrm.module.js"
+      "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3.1.2/lib/three-vrm.module.js",
+      "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
+      "firebase/auth": "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js"
     }
   }
   </script>
 
-  <분리된 CSS 파일 연결 -->
   <link rel="stylesheet" href="./css/style.css">
 </head>
 <body>
@@ -32,13 +34,97 @@
   
   <!-- 로그인 오버레이 -->
   <div id="login-overlay">
-    <div class="login-box">
-      <h2 style="margin-bottom: 20px; font-weight: 300;">Lofi Space</h2>
-      <input type="text" id="lofi-id" class="login-input" placeholder="아이디 (admin)" />
-      <input type="password" id="lofi-pw" class="login-input" placeholder="비밀번호 (1234)" onkeydown="if(event.key==='Enter') checkLogin()" />
-      <button class="login-btn" onclick="checkLogin()">입장하기</button>
+    <div class="login-top-title">studywith<span>자세교정</span></div>
+
+    <div class="intro-container">
+      
+      <div class="intro-left-zone">
+        <div class="intro-text-zone">
+          <h1 class="hero-title">
+            당신의 몰입을 돕는<br>
+            <span>자세 감지</span> Lo-fi 공간
+          </h1>
+          <p class="hero-subtitle">
+            잘못된 자세(거북목)를 실시간으로 감지하고<br>
+            플레이리스트와 함께 생산성을 극대화하세요.
+          </p>
+        </div>
+        
+        <div class="intro-art-zone">
+          <div class="art-placeholder"></div>
+        </div>
+      </div>
+      
+      <div class="intro-right-zone">
+        <div class="main-login-box" id="main-login-box">
+          <h3 id="form-title" style="color:#fff; margin:0 0 15px 0; font-size:18px; text-align:center;">로그인</h3>
+    
+          <input type="text" id="lofi-id" class="login-input-new" placeholder="이메일 계정" />
+          <input type="password" id="lofi-pw" class="login-input-new" placeholder="비밀번호" onkeydown="if(event.key==='Enter' && !isSignupMode) checkLogin()" />
+          <input type="password" id="lofi-pw-confirm" class="login-input-new" placeholder="비밀번호 확인" style="display:none;" />
+    
+          <div style="margin-top: 8px;">
+            <button class="submit-btn-new" id="submit-btn" onclick="checkLogin()">입장하기</button>
+          </div>
+
+          <div style="text-align:center; margin-top:15px; font-size:13px; color:#a0c0d8;">
+            <span id="toggle-mode-text">
+              계정이 없으신가요? 
+              <a href="#" onclick="toggleSignupMode()" style="color:#1DB954; text-decoration:none; font-weight:bold;">회원가입</a>
+            </span>
+          </div>
+      </div>
+      </div>
     </div>
   </div>
+  </div>
+  <div class="login-form-panel" id="login-form-panel">
+    <div style="text-align:right;">
+      <button onclick="closeLoginForm()" style="background:none; border:none; color:#a0c0d8; cursor:pointer; font-size:12px;">✕</button>
+    </div>
+    <div class="login-form-header">Lo-fi Space 접속</div>
+    <input type="text" id="lofi-id" class="login-input" placeholder="아이디(이메일계정)" />
+    <input type="password" id="lofi-pw" class="login-input" placeholder="비밀번호" onkeydown="if(event.key==='Enter') checkLogin()" />
+    <button class="login-btn" onclick="checkLogin()">입장하기</button>
+  </div>
+  </div>
+
+  <div class="report-overlay" id="report-overlay" style="display: none;">
+  <div class="report-container">
+    <h2 class="report-title"> 오늘의 자세 리포트</h2>
+    
+    <div class="report-grid">
+      <div class="report-box">
+        <h3>거북목 감지 횟수</h3>
+        <div class="report-value" id="report-count">0<span style="font-size:18px">회</span></div>
+        <div class="report-sub">최장 지속 시간: <span id="report-max-time">0분</span></div>
+      </div>
+
+      <div class="report-box">
+        <h3>총 거북목 유지 시간</h3>
+        <div class="report-value" id="report-total-time">0<span style="font-size:18px">분</span></div>
+        <div class="report-sub">기준 대비 평균 ΔDepth: <span id="report-depth" style="color:#fca5a5;">0.0cm</span></div>
+      </div>
+
+      <div class="report-box">
+        <h3>시간대별 거북목 빈도</h3>
+        <div class="chart-container" id="report-chart"></div>
+        <div class="chart-labels">
+          <span>오전</span><span>오후</span><span>저녁</span>
+        </div>
+      </div>
+
+      <div class="report-box" style="padding: 15px;">
+        <h3 style="margin-bottom: 10px;">추천 거북목 스트레칭</h3>
+        <div style="flex:1; background: #000; border-radius: 8px; overflow: hidden; border: 1px solid rgba(0, 180, 255, 0.2);">
+          <iframe width="100%" height="100%" src="https://www.youtube.com/embed/-nJkOEQ_HGE" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+        </div>
+      </div>
+    </div>
+
+    <button class="report-btn" onclick="closeReportAndLogout()">리포트 닫기 및 최종 로그아웃</button>
+  </div>
+</div>
 
   <!-- 캘리브레이션 오버레이 -->
   <div id="calib-overlay">
@@ -102,7 +188,7 @@
     <div style="flex:1"></div>
   </div>
 
-  <!-- 포모도로 (draggable) -->
+  <!-- 포모도로 -->
   <div id="pomo-drag">
     <div id="pomo-outer">
       <svg class="ring" viewBox="0 0 190 190">
@@ -330,7 +416,7 @@
   </div>
 </div>
 
-<!-- ✨ 2. 분리된 메인 JavaScript 연결 -->
+<!-- 메인 JavaScript 연결 -->
 <script type="module" src="./js/main.js"></script>
 
 </body>

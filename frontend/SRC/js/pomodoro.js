@@ -111,7 +111,6 @@ updateRing();
 
 // 재생 / 일시정지 버튼 토글
 export function togglePomo() {
-  // 브라우저 정책 상 사용자가 버튼을 클릭했을 때 AudioContext를 활성화해야 합니다.
   if (audioCtx.state === 'suspended') audioCtx.resume();
   
   if (!pomoRunning) {

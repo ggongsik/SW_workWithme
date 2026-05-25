@@ -3,8 +3,8 @@
 // 사이드바 패널에 들어가는 노트, ToDo 리스트, 캘린더 기능을 관리합니다.
 // ============================================================================
 
-// ── 0. 공통 유틸리티 ──
-// HTML 태그가 텍스트로 인식되도록 변환하여 보안(XSS 방지) 및 화면 깨짐을 막는 함수 (내부 전용)
+// 공통 유틸리티
+// HTML 태그가 텍스트로 인식되도록 변환하여 보안 및 화면 깨짐을 막는 함수
 export function escHtml(s) {
   if (!s) return "";
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -12,12 +12,12 @@ export function escHtml(s) {
 
 
 // ============================================================================
-// ── 1. 노트 (Note) 로직 ──
+// 노트 로직
 // ============================================================================
 let notes = [{ title: '새로운 페이지', content: '' }];
 let activeNote = 0;
 
-// 노트 목록과 편집 영역을 화면에 다시 그리는 함수 (내부 전용)
+// 노트 목록과 편집 영역을 화면에 다시 그리는 함수
 function renderNotes() {
   const listEl = document.getElementById('note-list');
   const editArea = document.getElementById('note-edit-area');
@@ -85,11 +85,11 @@ export function deleteNote(e, i) {
 
 
 // ============================================================================
-// ── 2. ToDo 리스트 로직 ──
+// ToDo 리스트 로직
 // ============================================================================
 const todos = [];
 
-// ToDo 리스트 화면 렌더링 (내부 전용)
+// ToDo 리스트 화면 렌더링
 function renderTodos() {
   const listEl = document.getElementById('todo-list');
   const countEl = document.getElementById('todo-count');
@@ -116,7 +116,7 @@ export function addTodo() {
   renderTodos();
 }
 
-// 체크박스 토글 (완료/미완료)
+// 체크박스 토글
 export function toggleTodo(i) {
   todos[i].done = !todos[i].done;
   renderTodos();
@@ -130,19 +130,18 @@ export function deleteTodo(i) {
 
 
 // ============================================================================
-// ── 3. 캘린더 (Calendar) 로직 ──
+// 캘린더 (Calendar) 로직
 // ============================================================================
 let calYear = new Date().getFullYear();
 let calMonth = new Date().getMonth();
 let calLabels = {}; // { 'YYYY-MM-DD': ['일정 1', '일정 2'] } 형식으로 저장
 let calSelectedDate = null;
 
-// 날짜를 YYYY-MM-DD 형식의 문자열 키로 변환 (내부 전용)
 function calDateKey(y, m, d) {
   return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
-// 캘린더 화면 그리기 (내부 전용)
+// 캘린더 화면 그리기
 function renderCal() {
   const labelEl = document.getElementById('cal-label');
   const gridEl = document.getElementById('cal-grid');
@@ -196,7 +195,6 @@ export function changeMonth(d) {
   renderCal();
 }
 
-// 특정 일자 클릭 시
 export function selectCalDay(day) {
   const key = calDateKey(calYear, calMonth, day);
   calSelectedDate = key;
@@ -207,7 +205,7 @@ export function selectCalDay(day) {
   document.getElementById('cal-label-input').focus();
 }
 
-// 일정 목록 패널 업데이트 (내부 전용)
+// 일정 목록 패널 업데이트
 function renderCalLabelPanel() {
   const key = calSelectedDate;
   if (!key) return;
@@ -260,7 +258,6 @@ export function deleteCalLabel(key, i) {
 // ============================================================================
 // ── 4. 모듈 초기화 실행 ──
 // ============================================================================
-// 이 파일이 로드(import)될 때, 빈 화면이 나오지 않도록 초기 렌더링을 1회 수행합니다.
 renderNotes();
 renderTodos();
 renderCal();
