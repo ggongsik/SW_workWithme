@@ -23,3 +23,11 @@ export async function registerUser(email, password) {
 export async function loginUser(email, password) {
   return await signInWithEmailAndPassword(auth, email, password);
 }
+
+export async function getUserToken() {
+  const user = auth.currentUser;
+  if (user) {
+    return await user.getIdToken(false); 
+  }
+  return null;
+}

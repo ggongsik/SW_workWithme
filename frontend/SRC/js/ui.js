@@ -5,6 +5,7 @@
 
 import { reloadPlaylistForUser } from './player.js';
 import { registerUser, loginUser } from './firebase.js';
+import { initWebSocket } from './main.js';
 
 let timeFmt = 12; // 시간 형식 (12시/24시)
 
@@ -135,6 +136,8 @@ export async function checkLogin() {
     
     console.log("로그인 성공!", userCredential.user.email);
     closeLoginOverlay();
+
+    await initWebSocket();
 
   } catch (error) {
     console.error("로그인 에러:", error);
