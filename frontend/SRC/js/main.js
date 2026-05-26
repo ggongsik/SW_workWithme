@@ -87,8 +87,6 @@ window.togglePostureCorrection = togglePostureCorrection;
 // 3. 앱 초기화 (HTML이 다 로드된 후 최초 1회 실행될 세팅들)
 // ============================================================================
 window.addEventListener('DOMContentLoaded', () => {
-  // 웹소켓 연결 시작
-  initWebSocket();
 
   // 3D 배경 및 캐릭터 렌더링 시작
   init3DScene();

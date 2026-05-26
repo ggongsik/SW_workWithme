@@ -3,6 +3,7 @@
 // 백엔드 통신 및 거북목 지속 시간에 따른 상태(idle/warn/alert) 제어
 // ============================================================================
 
+import { getUserToken } from './firebase.js';
 let ws = null; 
 
 // 거북목 지속 시간 추적 변수
@@ -14,8 +15,13 @@ let currentPoseState = 'idle';
 const WARN_THRESHOLD_MIN = 1; // 1분
 const ALERT_THRESHOLD_MIN = 5; // 5분
 
-export function initWebSocket() {
-  ws = new WebSocket('ws://localhost:8000/ws/posture'); // 실제 백엔드 주소로 바꿔주세요
+export async function initWebSocket() {
+  const token = await getUserToken();
+  wsURL = new WebSocket('ws://localhost:8000/ws/posture'); // 실제 백엔드 주소로 바꿔주세요
+  if (token) {
+      wsURL += `?token=${token}`;
+  }
+  const ws = new WebSocket(wsUrl);
   ws.binaryType = 'arraybuffer'; 
   
   ws.onopen = () => console.log('WebSocket Connected');
@@ -70,7 +76,7 @@ function changeUIState(newState) {
   if (currentPoseState === newState) return; // 이미 같은 상태면 무시
   
   currentPoseState = newState;
-  console.log(`⏱️ 거북목 지속 상태 변경: ${newState}`);
+  console.log(` 거북목 지속 상태 변경: ${newState}`);
   
   // 3D 캐릭터 포즈 및 화면 테두리 네온 효과 변경
   if (window.setPose) window.setPose(newState); // index.html의 캐릭터 포즈 함수
