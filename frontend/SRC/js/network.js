@@ -21,7 +21,7 @@ export async function initWebSocket() {
   if (token) {
       wsURL += `?token=${token}`;
   }
-  const ws = new WebSocket(wsURL);
+  ws = new WebSocket(wsURL);
   ws.binaryType = 'arraybuffer'; 
   
   ws.onopen = () => console.log('WebSocket Connected');
