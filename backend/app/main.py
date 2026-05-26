@@ -38,6 +38,9 @@ async def root():
 async def health():
     return {"status": "healthy", "active_sessions": manager.active_count}
 
+
+# 클라이언트가 아래의 URL 로 웹소켓 연결을 요청하면, 함수 실행
+# 이거 token 받는 코드로 수정 필요
 @app.websocket("/ws/posture")
 async def posture_ws(websocket: WebSocket):
     await handle_posture_connection(websocket)
