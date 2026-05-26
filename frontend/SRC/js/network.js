@@ -17,11 +17,11 @@ const ALERT_THRESHOLD_MIN = 5; // 5분
 
 export async function initWebSocket() {
   const token = await getUserToken();
-  wsURL = new WebSocket('ws://localhost:8000/ws/posture'); // 실제 백엔드 주소로 바꿔주세요
+  let wsURL = 'ws://localhost:8000/ws/posture';
   if (token) {
       wsURL += `?token=${token}`;
   }
-  const ws = new WebSocket(wsUrl);
+  const ws = new WebSocket(wsURL);
   ws.binaryType = 'arraybuffer'; 
   
   ws.onopen = () => console.log('WebSocket Connected');
