@@ -5,7 +5,7 @@
 
 import { reloadPlaylistForUser } from './player.js';
 import { registerUser, loginUser } from './firebase.js';
-import { initWebSocket } from './main.js';
+import { initWebSocket } from './network.js';
 
 let timeFmt = 12; // 시간 형식 (12시/24시)
 
@@ -198,6 +198,7 @@ function showDailyReport() {
 
   // 리포트 오버레이 
   const overlay = document.getElementById('report-overlay');
+  if (!overlay) return;
   overlay.style.display = 'flex'; 
   
   setTimeout(() => {
@@ -468,4 +469,21 @@ function closeLoginOverlay() {
   setTimeout(() => { overlay.style.display = "none"; }, 500);
   if (window.restoreUI) window.restoreUI();
 }
+export async function fetchAndShowReport(reportId) {
+    try {
+        // (주의: http://localhost:8000/api/reports 부분은 팀원이 만든 실제 주소로 바꿔야 합니다!)
+        const response = await fetch(`http://localhost:8000/api/reports/${reportId}`);
+        
+        if (!response.ok) {
+            throw new Error(`서버 에러: ${response.status}`);
+        }
 
+        const realData = await response.json();
+        showDailyReport(realData);
+
+    } catch (error) {
+        console.error("리포트 API 호출 에러:", error);
+        alert("리포트를 불러오는 중 오류가 발생했습니다.");
+        if (window.restoreUI) window.restoreUI();
+    }
+}
