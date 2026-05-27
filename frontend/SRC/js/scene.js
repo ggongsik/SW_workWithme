@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { loadBackground } from './background.js';
-import { loadCharacter, updateCharacter, change3DPose } from './character.js';
+import { loadCharacter, updateCharacter, change3DPose, switchCharacter } from './character.js';
 
 let scene, camera, renderer, clock;
 
@@ -55,6 +55,7 @@ export function init3DScene() {
   
   // 외부 호출을 위한 전역 연결
   window.change3DPose = change3DPose;
+  window.switchCharacter = switchCharacter;
   window.setupPipRenderer = setupPipRenderer; // ui.js의 Document PiP에서 호출함
 }
 

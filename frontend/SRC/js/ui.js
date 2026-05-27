@@ -5,7 +5,7 @@
 
 import { reloadPlaylistForUser } from './player.js';
 import { registerUser, loginUser } from './firebase.js';
-import { initWebSocket } from './main.js';
+import { initWebSocket } from './network.js';
 
 let timeFmt = 12; // 시간 형식 (12시/24시)
 
