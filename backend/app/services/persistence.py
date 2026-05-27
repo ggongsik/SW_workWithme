@@ -33,6 +33,7 @@ async def save_session_with_report(
         # 1. SessionRecord
         session_record = SessionRecord(
             id = state.session_id,
+            user_id = state.user_id,  # Firebase 인증으로 채워진 DB internal user id
             started_at = state.started_at,
             ended_at = session_ended_at,
             duration_sec = session_ended_at - state.started_at,
