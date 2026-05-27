@@ -26,11 +26,14 @@ class Base(DeclarativeBase): # DeclarativeBase : 이 클래스는 DB 테이블�
 class UserRecord(Base):
     """
     사용자 정보.
-    TODO: 인증(로그인) 시스템 결정 후 username/password_hash 등 추가 예정.
+
+    id는 DB 내부 식별자(UUID), firebase_uid는 외부 인증 식별자(Firebase 발급).
+    인증 방식이 늘어나면 google_uid, github_uid 등의 컬럼을 추가하는 식으로 확장 가능.
     """
     __tablename__ = "users"
 
     id : Mapped[str] = mapped_column(String, primary_key = True, default = make_uuid)
+    firebase_uid : Mapped[str] = mapped_column(String, nullable = False, unique = True, index = True)
     created_at : Mapped[float] = mapped_column(Float, nullable = False, default = time.time)
 
     sessions: Mapped[List["SessionRecord"]] = relationship(

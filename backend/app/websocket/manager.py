@@ -17,6 +17,7 @@ class PostureEvent:
 class SessionState:
     session_id: str
     websocket: WebSocket
+    user_id: Optional[str] = None  # Firebase 인증 후 채워짐 (DB의 users.id, UUID)
     mode: str = "idle" # idle | calibrating | monitoring
 
     # time.time : 현재 시간을 초 단위로
@@ -40,10 +41,10 @@ class ConnectionManager:
     def __init__(self):
         self.sessions: Dict[str, SessionState] = {}
 
-    async def connect(self, websocket: WebSocket) -> SessionState:
+    async def connect(self, websocket: WebSocket, user_id: Optional[str] = None) -> SessionState:
         await websocket.accept()
         session_id = str(uuid.uuid4())
-        state = SessionState(session_id = session_id, websocket = websocket)
+        state = SessionState(session_id = session_id, websocket = websocket, user_id = user_id)
         self.sessions[session_id] = state
         return state
     

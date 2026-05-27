@@ -68,10 +68,10 @@ def decode_frame(frame_bytes: bytes) -> np.ndarray | None:
         return None
 
 # 연결 수락 → 메시지 루프 → 연결 정리 의 전체 생명주기를 관리.
-async def handle_posture_connection(websocket: WebSocket) -> None:
-    
+async def handle_posture_connection(websocket: WebSocket, user_id: str | None = None) -> None:
+
     # 1. 연결 수락 및 세션 생성
-    state: SessionState = await manager.connect(websocket)
+    state: SessionState = await manager.connect(websocket, user_id = user_id)
 
     # 2. 세션 시작 알림
     await send_json(websocket, SessionStarted(
