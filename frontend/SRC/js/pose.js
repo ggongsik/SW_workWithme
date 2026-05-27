@@ -3,7 +3,7 @@
 // MediaPipe를 이용한 자세 인식 및 좌표 웹소켓 전송 로직 
 // ============================================================================
 
-import { sendPoseData, sendCommand } from './network.js';
+import { sendPoseData, sendCommand, isCalibrated, setCalibrated } from './network.js';
 
 // 상태 변수 세팅 
 let currentLandmarks = null;    // 현재 프레임의 랜드마크 좌표
@@ -214,6 +214,10 @@ export function startCalibration() {
   }, 1000);
 }
 export function togglePostureCorrection() {
+  if (!isCalibrated) {
+    alert(" 측정된 기준 자세가 없습니다. '기본 자세 설정'을 먼저 진행해 주세요!");
+    return; 
+  }
   const toggleBtn = document.getElementById('calib-toggle-btn');
   
   if (!isTracking) {
@@ -245,6 +249,8 @@ export function togglePostureCorrection() {
     if (window.change3DPose) window.change3DPose('idle');
 
     sendCommand("stop_session");
+
+    setCalibrated(false);
 
     console.log("⏹️ 자세 교정 종료됨!");
     

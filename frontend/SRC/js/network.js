@@ -4,16 +4,17 @@
 // ============================================================================
 
 import { getUserToken } from './firebase.js';
+import { fetchAndShowReport } from './ui.js';
 let ws = null; 
 
 // 거북목 지속 시간 추적 변수
 let turtleStartTime = null; 
 let currentPoseState = 'idle'; 
-
+export let isCalibrated = false;
 // 상태 전환 임계값 (분 단위)
 // 개발 중에 테스트할 때는 이 값을 (1/60), (5/60) 처럼 초 단위로 바꿔서 테스트
-const WARN_THRESHOLD_MIN = 1; // 1분
-const ALERT_THRESHOLD_MIN = 5; // 5분
+const WARN_THRESHOLD_MIN = 5/60; // 1분
+const ALERT_THRESHOLD_MIN = 10/60; // 5분
 
 export async function initWebSocket() {
   const token = await getUserToken();
@@ -65,6 +66,23 @@ export async function initWebSocket() {
           }
         }
       }
+      else if (data && data.hasOwnProperty('baseline_delta_depth')) {
+        
+        isCalibrated = true; 
+        
+      }
+      else if (data && (data.type === 'SessionEnded' || data.hasOwnProperty('report_id'))) {
+        console.log("🛑 세션 종료 및 리포트 ID 수신:", data.report_id);
+        
+        isCalibrated = false; 
+
+        if (data.report_id) {
+            fetchAndShowReport(data.report_id);
+        } else {
+            alert("저장된 리포트 데이터가 없습니다.");
+            if (window.restoreUI) window.restoreUI();
+        }
+      }
     } catch (err) {
       console.error("서버 응답 파싱 실패:", err);
     }
@@ -97,4 +115,8 @@ export function sendCommand(commandType) {
     ws.send(msg);
     console.log(`[웹소켓 명령 전송] ${msg}`);
   }
+}
+
+export function setCalibrated(status) {
+  isCalibrated = status;
 }
