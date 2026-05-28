@@ -73,7 +73,7 @@ export async function initWebSocket() {
         
       }
       else if (data && (data.type === 'SessionEnded' || data.hasOwnProperty('report_id'))) {
-        console.log("🛑 세션 종료 및 리포트 ID 수신:", data.report_id);
+        console.log(" 세션 종료 및 리포트 ID 수신:", data.report_id);
         
         isCalibrated = false; 
 
