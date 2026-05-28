@@ -1,81 +1,71 @@
 """
-세션 + 이벤트 + 리포트를 DB에 저장하는 로직.
+세션 종료 시 SessionRecord 저장 + DailyStatsRecord 누적.
 
 handlers.py에서 호출. DB 트랜잭션 단위로 묶음.
 """
 
-import uuid
 import time
+from datetime import datetime
+from sqlalchemy import select
+
 from app.models.db import get_db_session
 from app.services.report import compute_stats
 
 from app.websocket.manager import SessionState
-from app.models.db_models import (
-    SessionRecord,
-    PostureEventRecord,
-    ReportRecord
-)
+from app.models.db_models import SessionRecord, DailyStatsRecord
 
-async def save_session_with_report(
+async def save_session_and_accumulate(
     state: SessionState,
     session_ended_at: float,
-) -> str:
+    monitoring_duration_sec: float,
+) -> None:
     """
-    세션 데이터를 DB에 저장하고 report_id 반환.
-    
-    트랜잭션 단위: 한 세션의 모든 데이터(session+events+report)를 한 번에 commit.
+    세션 메타(SessionRecord)를 저장하고, 그날 DailyStatsRecord에 통계를 누적.
+
+    트랜잭션 단위: SessionRecord + DailyStats 갱신을 한 번에 commit.
     하나라도 실패하면 전부 롤백 → 일관성 보장.(atomicity)
     """
     stats = compute_stats(state, session_ended_at)
-    report_id = str(uuid.uuid4()) # uuid 객체 -> str
+    today = datetime.now().strftime("%Y-%m-%d")  # 로컬 날짜 기준 일별 집계
 
     async with get_db_session() as db:
-        # 1. SessionRecord
+        # 1. SessionRecord (IF 학습 샘플의 부모 + 캘리브레이션 메타)
         session_record = SessionRecord(
             id = state.session_id,
-            user_id = state.user_id,  # Firebase 인증으로 채워진 DB internal user id
+            user_id = state.user_id,
             started_at = state.started_at,
             ended_at = session_ended_at,
-            duration_sec = session_ended_at - state.started_at,
             baseline = state.baseline_delta_depth,
             baseline_std = state.baseline_std,
             threshold = state.threshold,
         )
-        db.add(session_record) # 메모리에 추가
+        db.add(session_record)
 
-        # 2. PostureEventRecords
-        for iv in stats.intervals:
-            event_record = PostureEventRecord(
-                session_id = state.session_id,
-                started_at = iv.started_at,
-                ended_at = iv.ended_at,
-                duration_sec = iv.duration_sec
-            )
-            db.add(event_record)
-
-        # 3. ReportRecord
-        """
-        ###### 이미 defalut로 만들어주는데 굳이? uuid 해야하나
-        ###### -> return 할때, ReportRecord 에서 읽어오는 것보다
-                  미리 만들어서 하는게 더 단순함
-               -> 인자를 넘기면 default는 무시됨
-        """
-        report_record = ReportRecord(
-            id = report_id,
-            session_id = state.session_id,
-            generated_at = time.time(),
-            total_turtle_count = stats.total_turtle_count,
-            total_turtle_duration_sec = stats.total_turtle_duration_sec,
-            turtle_ratio = stats.turtle_ratio,
-            longest_streak_sec = stats.longest_streak_sec,
-            summary_json = stats.summary_json
+        # 2. DailyStatsRecord 누적 (user_id + date 단위로 1행)
+        stmt = select(DailyStatsRecord).where(
+            DailyStatsRecord.user_id == state.user_id,
+            DailyStatsRecord.date == today,
         )
-        db.add(report_record)
-        
-        # 지금까지 add 로 추가한 데이터를 실제로 DB에 저장 
+        result = await db.execute(stmt)
+        daily = result.scalar_one_or_none()
+
+        if daily is None:
+            daily = DailyStatsRecord(
+                user_id = state.user_id,
+                date = today,
+                total_turtle_duration_sec = stats.total_turtle_duration_sec,
+                total_monitoring_duration_sec = monitoring_duration_sec,
+                longest_streak_sec = stats.longest_streak_sec,
+                updated_at = time.time(),
+            )
+            db.add(daily)
+        else:
+            daily.total_turtle_duration_sec += stats.total_turtle_duration_sec
+            daily.total_monitoring_duration_sec += monitoring_duration_sec
+            daily.longest_streak_sec = max(daily.longest_streak_sec, stats.longest_streak_sec)
+            daily.updated_at = time.time()
+
         await db.commit()
-    
-    return report_id
     
 
 
