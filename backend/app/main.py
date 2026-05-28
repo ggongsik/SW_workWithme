@@ -1,5 +1,7 @@
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, status
+from fastapi.staticfiles import StaticFiles
 from app.websocket.handlers import handle_posture_connection, _ai_pipeline
 from app.websocket.manager import manager
 from app.models.db import init_db
@@ -8,6 +10,10 @@ from app.auth.firebase_auth import init_firebase, verify_token
 from app.services.user_service import get_or_create_user
 import asyncio
 import numpy as np
+
+_FRONTEND_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "SRC")
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -36,10 +42,6 @@ app = FastAPI(
 )
 app.include_router(report_router)
 
-@app.get("/")
-async def root():
-    return {"status": "ok"}
-
 @app.get("/health")
 async def health():
     return {"status": "healthy", "active_sessions": manager.active_count}
@@ -61,3 +63,8 @@ async def posture_ws(websocket: WebSocket, token: str | None = None):
 
     # 3. 인증된 user_id를 들고 핸들러 진입
     await handle_posture_connection(websocket, user_id=user_id)
+
+
+# 정적 프론트엔드 서빙 (반드시 모든 API/WS 라우트 등록 뒤에 마운트).
+# html=True → "/" 요청 시 index.html 자동 서빙.
+app.mount("/", StaticFiles(directory=_FRONTEND_DIR, html=True), name="frontend")
