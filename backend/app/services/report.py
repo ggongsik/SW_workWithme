@@ -8,10 +8,8 @@
 저장은 호출자(handlers.py)가 담당.
 """
 
-import json
-import time
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List
 
 from app.websocket.manager import SessionState, PostureEvent
 
@@ -24,13 +22,9 @@ class TurtleInterval:
 
 @dataclass
 class ReportStats:
-    """리포트 핵심 통계"""
-    total_turtle_count: int
+    """세션 1개의 거북목 집계 (DailyStats 누적에 사용)"""
     total_turtle_duration_sec: float
-    turtle_ratio: float # 0.0~1.0
     longest_streak_sec: float
-    intervals: List[TurtleInterval]
-    summary_json: str # 추가 정보 직렬화
 
 
 def build_intervals(
@@ -70,33 +64,17 @@ def build_intervals(
 
 def compute_stats(state: SessionState, session_ended_at: float) -> ReportStats:
     """
-    SessionState를 받아 리포트 통계를 계산.
+    SessionState의 거북목 이벤트로 이 세션의 총 거북목 시간·최장 지속을 계산.
+    turtle_ratio는 모니터링 시간으로 나눠야 하므로 DailyStats 조회 시점에 계산한다.
     """
-    intervals = build_intervals(state.posture_events ,session_ended_at)
+    intervals = build_intervals(state.posture_events, session_ended_at)
 
-    total_count = len(intervals)
     total_duration = sum(iv.duration_sec for iv in intervals)
     longest = max((iv.duration_sec for iv in intervals), default = 0.0)
 
-    session_duration = session_ended_at - state.started_at
-    ratio = total_duration / session_duration if session_duration > 0 else 0.0
-
-    # 추가 정보를 summary에 담기
-    summary = {
-        "session_duration_sec": round(session_duration, 2),
-        "calibration_baseline": state.baseline_delta_depth,
-        "calibration_std": state.baseline_std,
-        "threshold": state.threshold,
-        "interval_durations": [round(iv.duration_sec, 2) for iv in intervals]
-    }
-
     return ReportStats(
-        total_turtle_count = total_count,
         total_turtle_duration_sec = round(total_duration, 2),
-        turtle_ratio = round(ratio, 4),
-        longest_streak_sec = round(longest, 2),
-        intervals = intervals,
-        summary_json = json.dumps(summary, ensure_ascii = False)
+        longest_streak_sec = round(longest, 2)
     )
 
 

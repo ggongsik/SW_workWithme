@@ -27,6 +27,9 @@ class SessionState:
     calibration_samples: list = field(default_factory=list)
     calibration_started_at: Optional[float] = None
 
+    # start_monitoring 메시지를 받은 시각. stop_session까지가 순수 모니터링 시간.
+    monitoring_started_at: Optional[float] = None
+
     baseline_delta_depth: Optional[float] = None
     baseline_std: Optional[float] = None
     threshold: Optional[float] = None # baseline_delta_depth + 2*baseline_std

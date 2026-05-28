@@ -35,8 +35,6 @@ class DetectionResult(BaseModel):
 class SessionEnded(BaseModel):
     type: Literal["session_ended"] = "session_ended"
     session_id: str
-    report_id: Optional[str] = None
-    duration_sec: float
 
 class ErrorMessage(BaseModel):
     type: Literal["error"] = "error"

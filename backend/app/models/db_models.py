@@ -12,7 +12,7 @@ SQLAlchemy 테이블 모델 정의.
 import time
 import uuid
 from typing import Optional, List
-from sqlalchemy import Float, String, Integer, Text, ForeignKey
+from sqlalchemy import Float, String, Integer, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 def make_uuid() -> str:
@@ -49,100 +49,37 @@ class UserRecord(Base):
         cascade="all, delete-orphan",
         uselist=False  # 1:1
     )
+    daily_stats: Mapped[List["DailyStatsRecord"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
 
 
 class SessionRecord(Base):
-    """세션 메타데이터 (= 9-1의 sessions 테이블)"""
+    """세션 메타데이터. IF 학습 샘플(PostureSampleRecord)의 부모."""
     __tablename__ = "sessions"
 
     id : Mapped[str] = mapped_column(String, primary_key = True, default = make_uuid)
-    # TODO: 인증 시스템 도입 시 nullable=False로 변경
-    user_id : Mapped[Optional[str]] = mapped_column(
+    user_id : Mapped[str] = mapped_column(
         String,
         ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=True,
+        nullable=False,
         index=True
     )
-    started_at : Mapped[float] = mapped_column(Float, nullable = False)
-    ended_at : Mapped[float] = mapped_column(Float, nullable = False)
-    duration_sec : Mapped[float] = mapped_column(Float, nullable = False)
+    started_at : Mapped[float] = mapped_column(Float, nullable = False)  # 세션(연결) 시작
+    ended_at : Mapped[float] = mapped_column(Float, nullable = False)    # 세션(연결) 종료
 
-    # delta_depth (코-어깨 깊이 차)
+    # delta_depth (코-어깨 깊이 차) 캘리브레이션 값 (IF z-score 기준)
     baseline : Mapped[Optional[float]] = mapped_column(Float, nullable = True)
     baseline_std : Mapped[Optional[float]] = mapped_column(Float, nullable = True)
     threshold : Mapped[Optional[float]] = mapped_column(Float, nullable = True)
 
-    # CVA (Craniovertebral Angle)
-    baseline_cva : Mapped[Optional[float]] = mapped_column(Float, nullable = True)
-    baseline_cva_std : Mapped[Optional[float]] = mapped_column(Float, nullable = True)
-
-    # 검출 방식: "threshold" (초기 통계 기반) / "isolation_forest" (개인화 모델)
-    mode : Mapped[Optional[str]] = mapped_column(String, nullable = True)
-
-    """
-    SessionRecord 만 가지고 다른 테이블 접근 가능
-    DB에는 실제로 존재하지 않는다.(mapped column이 아니니깐)
-    """
-    user: Mapped[Optional["UserRecord"]] = relationship(back_populates="sessions")
-
-    events: Mapped[List["PostureEventRecord"]] = relationship(
-        back_populates="session", # 양방향으로 가능하도록
-        cascade="all, delete-orphan"  # 세션 지우면 이벤트도 자동 삭제
-    )
-
-    report: Mapped[Optional["ReportRecord"]] = relationship(
-        back_populates="session", # 양방향으로 가능하도록
-        cascade="all, delete-orphan",  # 세션 지우면 이벤트도 자동 삭제
-        uselist = False # 기본적으로 relationship은 **여러 개(리스트)**를 가져옴
-    )
+    user: Mapped["UserRecord"] = relationship(back_populates="sessions")
 
     posture_samples: Mapped[List["PostureSampleRecord"]] = relationship(
         back_populates="session",
         cascade="all, delete-orphan"
     )
-
-class PostureEventRecord(Base):
-    """거북목 발생 이벤트"""
-    __tablename__ = "posture_events"
-
-    # autoincrement : 데이터베이스에 새로운 데이터를 넣을 때마다 자동 번호표 발행 (+1씩 )
-    id : Mapped[int] = mapped_column(Integer, primary_key = True, autoincrement = True)
-    session_id : Mapped[str] = mapped_column(
-        String,
-        ForeignKey("sessions.id", ondelete = "CASCADE"), # CASCADE(종속) : 세션이 삭제되면 이 이벤트도 삭제
-        nullable = False,
-        index = True # 조회 성능 향상
-    )
-    started_at : Mapped[float] = mapped_column(Float, nullable = False)
-    ended_at : Mapped[Optional[float]] = mapped_column(Float, nullable = True)
-    duration_sec : Mapped[float] = mapped_column(Float, nullable = False)
-
-    session: Mapped["SessionRecord"] = relationship(back_populates = "events")
-
-
-class ReportRecord(Base):
-    """세션별 리포트 요약"""
-    __tablename__ = "reports"
-
-    id : Mapped[str] = mapped_column(String, primary_key = True, default = make_uuid)
-    session_id : Mapped[str] = mapped_column(
-        String,
-        ForeignKey("sessions.id", ondelete = "CASCADE"), # CASCADE(종속) : 세션이 삭제되면 이 이벤트도 삭제
-        nullable = False,
-        unique = True, # 1:1 보장
-        index = True
-    )
-    generated_at : Mapped[float] = mapped_column(Float, nullable = False)
-
-    total_turtle_count: Mapped[int] = mapped_column(Integer, default=0)
-    total_turtle_duration_sec: Mapped[float] = mapped_column(Float, default=0.0)
-    turtle_ratio: Mapped[float] = mapped_column(Float, default=0.0)
-    longest_streak_sec: Mapped[float] = mapped_column(Float, default=0.0)
-
-    summary_json: Mapped[str] = mapped_column(Text, default="{}")
-
-    session: Mapped["SessionRecord"] = relationship(back_populates="report")
-
 
 class PostureSampleRecord(Base):
     """
@@ -168,13 +105,9 @@ class PostureSampleRecord(Base):
     )
     timestamp : Mapped[float] = mapped_column(Float, nullable = False)
 
-    # raw 측정값
+    # raw 측정값 + z-score (해당 세션의 baseline/std 기준으로 정규화)
     delta_depth_raw : Mapped[float] = mapped_column(Float, nullable = False)
-    cva_raw : Mapped[Optional[float]] = mapped_column(Float, nullable = True)
-
-    # z-score (해당 세션의 baseline/std 기준으로 정규화)
     delta_depth_zscore : Mapped[float] = mapped_column(Float, nullable = False)
-    cva_zscore : Mapped[Optional[float]] = mapped_column(Float, nullable = True)
 
     user: Mapped["UserRecord"] = relationship(back_populates="posture_samples")
     session: Mapped["SessionRecord"] = relationship(back_populates="posture_samples")
@@ -206,6 +139,36 @@ class UserModelRecord(Base):
     sample_count : Mapped[int] = mapped_column(Integer, nullable = False)  # 학습에 사용된 샘플 수
 
     user: Mapped["UserRecord"] = relationship(back_populates="model")
+
+
+class DailyStatsRecord(Base):
+    """
+    사용자별 일별 자세 통계 (user_id + date 단위로 1행, 세션 종료 시 누적).
+
+    리포트 화면의 '오늘 데이터'와 '7일 추이 그래프'의 데이터 소스.
+    turtle_ratio 같은 파생값은 저장하지 않고 조회 시 계산한다.
+    """
+    __tablename__ = "daily_stats"
+
+    id : Mapped[str] = mapped_column(String, primary_key = True, default = make_uuid)
+    user_id : Mapped[str] = mapped_column(
+        String,
+        ForeignKey("users.id", ondelete = "CASCADE"),
+        nullable = False,
+        index = True
+    )
+    date : Mapped[str] = mapped_column(String, nullable = False, index = True)  # "YYYY-MM-DD" (로컬 날짜)
+
+    total_turtle_duration_sec : Mapped[float] = mapped_column(Float, nullable = False, default = 0.0)
+    total_monitoring_duration_sec : Mapped[float] = mapped_column(Float, nullable = False, default = 0.0)
+    longest_streak_sec : Mapped[float] = mapped_column(Float, nullable = False, default = 0.0)
+    updated_at : Mapped[float] = mapped_column(Float, nullable = False, default = time.time)
+
+    user: Mapped["UserRecord"] = relationship(back_populates="daily_stats")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "date", name="uq_user_date"),
+    )
 
 
 

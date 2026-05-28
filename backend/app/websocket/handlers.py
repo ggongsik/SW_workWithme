@@ -14,7 +14,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 
 from app.websocket.manager import manager, SessionState, PostureEvent
 from app.services import calibration, detection
-from app.services.persistence import save_session_with_report
+from app.services.persistence import save_session_and_accumulate
 
 
 from app.models.schemas import (
@@ -125,8 +125,9 @@ async def _handle_text_message(state: SessionState, raw_text: str) -> None:
         await _start_calibration(state)
     elif msg_type == "stop_calibration" :
         await _stop_calibration(state)
+    elif msg_type == "start_monitoring" :
+        await _start_monitoring(state)
     elif msg_type == "stop_session" :
-        # Step 9에서 본격 구현 (DB 저장 + 리포트). 지금은 placeholder.
         await _stop_session(state)
     else:
         await send_error(
@@ -191,6 +192,21 @@ async def _stop_calibration(state: SessionState) -> None:
     ))
     print(f"[{state.session_id[:8]}] 캘리브레이션 완료: "
           f"baseline={result.baseline:.4f}, threshold={result.threshold:.4f}")
+
+async def _start_monitoring(state: SessionState) -> None:
+    """
+    프론트 '자세 교정 시작' 시 호출. 순수 모니터링 시간 측정 시작점.
+    캘리브레이션이 끝나(monitoring 모드) 있어야 한다.
+    """
+    if state.mode != "monitoring":
+        await send_error(
+            state.websocket,
+            code = "NOT_CALIBRATED",
+            message = "캘리브레이션을 먼저 완료해주세요"
+        )
+        return
+    state.monitoring_started_at = time.time()
+    print(f"[{state.session_id[:8]}] 모니터링 시작 (시간 측정 개시)")
 
 async def _handle_frame(state: SessionState, frame_bytes: bytes) -> None:
     """
@@ -277,28 +293,32 @@ async def _process_monitoring_frame(state: SessionState, delta_depth: float) -> 
               f"(ema={result.delta_depth_smoothed:.4f})")
 
 async def _stop_session(state: SessionState) -> None:
-    """세션 종료 처리: 저장 + 리포트 생성 + 응답"""
+    """세션 종료 처리: 모니터링 시간 계산 + 저장(DailyStats 누적) + ack."""
     session_ended_at = time.time()
 
-    # 만약 거북목 상태로 끝났다면 가상의 정상 복귀 이벤트 추가
-    # (build_intervals가 정상적으로 끝점을 잡도록)
+    # 거북목 상태로 끝났다면 가상의 정상 복귀 이벤트 추가
+    # (build_intervals가 마지막 구간의 끝점을 잡도록)
     if state.is_turtle_active:
         state.posture_events.append(PostureEvent(
             timestamp = session_ended_at,
             is_turtle = False,
             delta_depth_smoothed = state.ema_value or 0.0
         ))
-     # 캘리브레이션도 안 끝낸 채 종료한 경우는 저장 스킵
-    if state.mode in ("idle", "calibrating"):
-        await send_json(state.websocket, SessionEnded(
-            session_id=state.session_id,
-            report_id=None,
-            duration_sec=session_ended_at - state.started_at,
-        ))
+
+    # 순수 모니터링 시간 (start_monitoring ~ stop_session)
+    if state.monitoring_started_at is not None:
+        monitoring_duration = session_ended_at - state.monitoring_started_at
+    else:
+        monitoring_duration = 0.0
+
+    # 모니터링을 시작하지 않았으면 저장 스킵 (캘리브레이션만 하고 종료 등)
+    if state.mode != "monitoring" or monitoring_duration <= 0:
+        await send_json(state.websocket, SessionEnded(session_id = state.session_id))
+        state.monitoring_started_at = None
         return
 
     try:
-        report_id = await save_session_with_report(state, session_ended_at)
+        await save_session_and_accumulate(state, session_ended_at, monitoring_duration)
     except Exception as e:
         print(f"[{state.session_id[:8]}] 저장 실패: {e}")
         await send_error(
@@ -308,13 +328,9 @@ async def _stop_session(state: SessionState) -> None:
         )
         return
 
-    await send_json(state.websocket, SessionEnded(
-        session_id = state.session_id,
-        report_id = report_id,
-        duration_sec = session_ended_at - state.started_at
-    ))
-    
-    print(f"[{state.session_id[:8]}] 세션 저장 완료 (report_id={report_id[:8]}...)")
+    await send_json(state.websocket, SessionEnded(session_id = state.session_id))
+    state.monitoring_started_at = None  # 다음 모니터링(재캘리브레이션 등) 대비 리셋
+    print(f"[{state.session_id[:8]}] 세션 저장 완료 (모니터링 {monitoring_duration:.1f}초)")
 
 
 
