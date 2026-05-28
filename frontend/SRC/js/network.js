@@ -4,7 +4,8 @@
 // ============================================================================
 
 import { getUserToken } from './firebase.js';
-import { fetchAndShowReport } from './ui.js';
+import { fetchAndShowReport, setUIGlow } from './ui.js';
+import { change3DPose } from './character.js';
 let ws = null; 
 
 // 거북목 지속 시간 추적 변수
@@ -96,9 +97,8 @@ function changeUIState(newState) {
   currentPoseState = newState;
   console.log(` 거북목 지속 상태 변경: ${newState}`);
   
-  // 3D 캐릭터 포즈 및 화면 테두리 네온 효과 변경
-  if (window.setPose) window.setPose(newState); // index.html의 캐릭터 포즈 함수
-  if (window.setUIGlow) window.setUIGlow(newState); // ui.js의 네온 글로우 함수
+  change3DPose(newState)
+  setUIGlow(newState);
 }
 
 // 
