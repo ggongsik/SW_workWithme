@@ -229,6 +229,7 @@ export function togglePostureCorrection() {
     toggleBtn.style.color = "#ff3c50";
     
     startPostureTracking(); 
+    sendCommand("start_monitoring");
     console.log("▶️ 자세 교정 시작됨! (백그라운드 카메라 가동 중)");
     
     closeCalibration(); 

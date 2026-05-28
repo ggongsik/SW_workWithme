@@ -4,8 +4,8 @@
 // ============================================================================
 
 import { reloadPlaylistForUser } from './player.js';
-import { registerUser, loginUser } from './firebase.js';
-import { initWebSocket } from './network.js';
+import { registerUser, loginUser, getUserToken} from './firebase.js';
+import { initWebSocket, sendCommand } from './network.js';
 
 let timeFmt = 12; // 시간 형식 (12시/24시)
 
@@ -152,58 +152,126 @@ export function logout() {
   if (window.togglePlay && document.getElementById('play-btn').textContent === '⏸') {
     window.togglePlay(); 
   }
-
-  // 로그아웃 창으로 바로 가지 않고 리포트 창 띄우기
-  showDailyReport();
+  if (window.isTracking) {
+    console.log("모니터링 중 Exit 클릭됨. 백엔드로 stop_session 전송!");
+    
+    sendCommand("stop_session");
+    
+  } else {
+    console.log("모니터링 중이 아님. 바로 종료 처리!");
+    alert("오늘 측정된 기록이 없습니다. 안녕히 가세요!");
+    closeReportAndLogout(); 
+  }
 }
 
-// 오늘의 리포트 생성 및 표시 함수
-function showDailyReport() {
-  //  임시 통계 데이터
-  const mockData = {
-    count: Math.floor(Math.random() * 15) + 5,      // 발생 횟수 (5~20회)
-    totalTime: Math.floor(Math.random() * 40) + 10, // 총 시간 (10~50분)
-    maxTime: Math.floor(Math.random() * 15) + 5,    // 최장 지속 시간 (5~20분)
-    avgDepth: (Math.random() * 3 + 2).toFixed(1),   // 무너짐 정도 (2.0~5.0cm)
-    chart: [
-      Math.floor(Math.random() * 30) + 10, // 오전 빈도
-      Math.floor(Math.random() * 50) + 20, // 오후 빈도
-      Math.floor(Math.random() * 20) + 5   // 저녁 빈도
-    ]
-  };
+export async function fetchAndShowReport() { 
+    try {
+        // ✨ Firebase 토큰 가져오기 (백엔드 요구사항)
+        const token = await getUserToken();
 
-  // 텍스트 업데이트
-  document.getElementById('report-count').innerHTML = `${mockData.count}<span style="font-size:16px">회</span>`;
-  document.getElementById('report-total-time').innerHTML = `${mockData.totalTime}<span style="font-size:16px">분</span>`;
-  document.getElementById('report-max-time').textContent = `${mockData.maxTime}분`;
-  document.getElementById('report-depth').textContent = `-${mockData.avgDepth}cm`;
+        // ✨ 캡처본에 있는 정확한 API 주소와 헤더 사용
+        const response = await fetch(`http://localhost:8000/api/users/me/report`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`서버 에러: ${response.status}`);
+        }
 
-  // 3시간대별 빈도 막대 그래프 렌더링
-  const chartContainer = document.getElementById('report-chart');
-  chartContainer.innerHTML = '';
-  const maxVal = Math.max(...mockData.chart, 50); // 최대 높이 기준
-  
-  mockData.chart.forEach(val => {
-    const heightPct = (val / maxVal) * 100;
-    // 애니메이션 효과를 위해 처음엔 height: 0으로 생성
-    const bar = document.createElement('div');
-    bar.className = 'chart-bar';
-    bar.style.height = '0%';
-    bar.title = `${val}회`;
-    chartContainer.appendChild(bar);
+        const realData = await response.json();
+        console.log("📊 리포트 데이터 도착:", realData);
+        
+        // 데이터 화면에 그리기
+        showDailyReport(realData);
+
+    } catch (error) {
+        console.error("리포트 API 호출 에러:", error);
+        alert("리포트를 불러오는 중 오류가 발생했습니다.");
+        if (window.restoreUI) window.restoreUI();
+    }
+}
+
+// 2. 화면에 데이터 렌더링하기 (새로운 레이아웃 반영)
+export function showDailyReport(data) {
+    if (!data || !data.today) {
+        console.error("유효하지 않은 리포트 데이터입니다.");
+        return;
+    }
+
+    const today = data.today;
+    const weekly = data.weekly_trend || [];
+
+    // --- 좌측 상단: 3가지 핵심 지표 ---
+    // 초(sec)를 분(min)으로 반올림하고, 비율은 퍼센트(%)로 변환
+    const totalDurationMin = Math.round(today.total_turtle_duration_sec / 60);
+    const maxStreakMin = Math.round(today.longest_streak_sec / 60);
+    const turtleRatioPct = (today.turtle_ratio * 100).toFixed(1);
+
+    // HTML에 해당 ID가 있다고 가정하고 값 넣기
+    const totalEl = document.getElementById('report-total-time');
+    const maxEl = document.getElementById('report-max-time');
+    const ratioEl = document.getElementById('report-ratio'); 
+
+    if(totalEl) totalEl.innerHTML = `${totalDurationMin}<span style="font-size:16px">분</span>`;
+    if(maxEl) maxEl.innerHTML = `${maxStreakMin}<span style="font-size:16px">분</span>`;
+    if(ratioEl) ratioEl.innerHTML = `${turtleRatioPct}<span style="font-size:16px">%</span>`;
+
+
+    // --- [2] 우측 반: 지난 7일간 추이 그래프 ---
+    const chartContainer = document.getElementById('report-chart');
+    if (chartContainer) {
+        chartContainer.innerHTML = '';
+        
+        // 막대그래프 렌더링 (가장 비율이 높은 날을 100% 높이로 잡거나, 절대 퍼센트로 잡음)
+        weekly.forEach(dayData => {
+            // date ("2026-05-22") 에서 "05-22"만 추출
+            const dateStr = dayData.date.slice(5); 
+            
+            // 비율(%) 계산 및 해당 날짜의 총 무너진 시간(분) 계산
+            const heightPct = dayData.turtle_ratio * 100;
+            const durationMin = Math.round((dayData.turtle_ratio * dayData.monitoring_duration_sec) / 60);
+
+            // 막대를 감싸는 컨테이너 (막대 + 날짜 라벨)
+            const barWrapper = document.createElement('div');
+            barWrapper.style.display = 'flex';
+            barWrapper.style.flexDirection = 'column';
+            barWrapper.style.alignItems = 'center';
+            barWrapper.style.flex = '1';
+
+            // 실제 차트 막대
+            const bar = document.createElement('div');
+            bar.className = 'chart-bar';
+            bar.style.height = '0%'; // 애니메이션 시작점
+            // 마우스 올렸을 때 툴팁으로 시간과 비율 표시
+            bar.title = `${durationMin}분 (${heightPct.toFixed(1)}%)`; 
+            
+            // 하단 날짜 텍스트
+            const label = document.createElement('span');
+            label.style.fontSize = '12px';
+            label.style.color = '#fff';
+            label.style.marginTop = '8px';
+            label.innerText = dateStr;
+
+            barWrapper.appendChild(bar);
+            barWrapper.appendChild(label);
+            chartContainer.appendChild(barWrapper);
+            
+            // 스르륵 차오르는 애니메이션
+            setTimeout(() => { bar.style.height = `${heightPct}%`; }, 100);
+        });
+    }
+
+    // 리포트 오버레이 띄우기
+    const overlay = document.getElementById('report-overlay');
+    if (!overlay) return;
+    overlay.style.display = 'flex'; 
     
-    // 약간의 딜레이 후 실제 높이 적용
-    setTimeout(() => { bar.style.height = `${heightPct}%`; }, 100);
-  });
-
-  // 리포트 오버레이 
-  const overlay = document.getElementById('report-overlay');
-  if (!overlay) return;
-  overlay.style.display = 'flex'; 
-  
-  setTimeout(() => {
-    overlay.classList.add('active');
-  }, 10);
+    setTimeout(() => {
+        overlay.classList.add('active');
+    }, 10);
 }
 
 // 리포트 확인 후 최종 로그아웃 
@@ -469,21 +537,27 @@ function closeLoginOverlay() {
   setTimeout(() => { overlay.style.display = "none"; }, 500);
   if (window.restoreUI) window.restoreUI();
 }
-export async function fetchAndShowReport(reportId) {
-    try {
-        // (주의: http://localhost:8000/api/reports 부분은 팀원이 만든 실제 주소로 바꿔야 합니다!)
-        const response = await fetch(`http://localhost:8000/api/reports/${reportId}`);
-        
-        if (!response.ok) {
-            throw new Error(`서버 에러: ${response.status}`);
-        }
 
-        const realData = await response.json();
-        showDailyReport(realData);
+window.testReport = function() {
+    const mockData = {
+        "today": {
+            "date": "2026-05-29",
+            "total_turtle_duration_sec": 2820.0,  // 47분
+            "longest_streak_sec": 420.0,         // 7분
+            "total_monitoring_duration_sec": 7200.0, 
+            "turtle_ratio": 0.392                // 39.2%
+        },
+        "weekly_trend": [
+            { "date": "2026-05-23", "turtle_ratio": 0.45, "monitoring_duration_sec": 5400.0 },
+            { "date": "2026-05-24", "turtle_ratio": 0.41, "monitoring_duration_sec": 6200.0 },
+            { "date": "2026-05-25", "turtle_ratio": 0.38, "monitoring_duration_sec": 4800.0 },
+            { "date": "2026-05-26", "turtle_ratio": 0.40, "monitoring_duration_sec": 7000.0 },
+            { "date": "2026-05-27", "turtle_ratio": 0.36, "monitoring_duration_sec": 5600.0 },
+            { "date": "2026-05-28", "turtle_ratio": 0.35, "monitoring_duration_sec": 6800.0 },
+            { "date": "2026-05-29", "turtle_ratio": 0.392, "monitoring_duration_sec": 7200.0 }
+        ]
+    };
 
-    } catch (error) {
-        console.error("리포트 API 호출 에러:", error);
-        alert("리포트를 불러오는 중 오류가 발생했습니다.");
-        if (window.restoreUI) window.restoreUI();
-    }
-}
+    console.log("🔧 [Dev Mode] 가짜 데이터로 리포트 화면을 렌더링합니다!");
+    showDailyReport(mockData);
+};
