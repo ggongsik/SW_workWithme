@@ -4,7 +4,7 @@ from typing import Literal, Optional
 class ClientMessage(BaseModel):
     type: str # 변수
 
-class StartCalibration(ClientMessage): # 상속의 목적 : 이건 `ClientMessage`, 클라이언트가 보내는 메시지다. 
+class StartCalibration(ClientMessage): # 상속의 목적 : 이건 `ClientMessage`, 클라이언트가 보내는 메시지다.
     type: Literal["start_calibration"] # 상속받아서 재정의
 
 class StopSession(ClientMessage):
@@ -35,8 +35,6 @@ class DetectionResult(BaseModel):
 class SessionEnded(BaseModel):
     type: Literal["session_ended"] = "session_ended"
     session_id: str
-    report_id: Optional[str] = None
-    duration_sec: float
 
 class ErrorMessage(BaseModel):
     type: Literal["error"] = "error"

@@ -6,7 +6,6 @@
 - 결과는 SessionState에 누적 (Step 9에서 DB로 저장)
 """
 import time
-import math
 
 from typing import Optional
 from dataclasses import dataclass
@@ -36,20 +35,16 @@ def update_ema(previous: float, current: float, alpha: float = EMA_ALPHA) -> flo
 def detect(state: SessionState, raw_delta_depth: float) -> Optional[DetectionResult]:
     """
     한 프레임의 raw ΔDepth를 받아 거북목 여부를 판정.
-    
+
     monitoring 모드가 아니거나 baseline이 없으면 None.
     """
     if state.mode != "monitoring":
         return None
     if state.baseline_delta_depth is None or state.baseline_std is None:
         return None
-    if not math.isfinite(raw_delta_depth):
-        return None
 
     baseline = state.baseline_delta_depth
     std = state.baseline_std
-    if not math.isfinite(baseline) or not math.isfinite(std):
-        return None
 
     # 1. EMA 갱신
     prev_ema = state.ema_value if state.ema_value is not None else baseline
@@ -68,9 +63,9 @@ def detect(state: SessionState, raw_delta_depth: float) -> Optional[DetectionRes
         is_turtle = True
     elif (new_ema < threshold_low):
         is_turtle = False
-    
+
     state.is_turtle_active = is_turtle
-    
+
     return DetectionResult(
         is_turtle = is_turtle,
         delta_depth = raw_delta_depth,

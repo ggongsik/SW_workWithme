@@ -4,9 +4,9 @@
 // ============================================================================
 
 import { reloadPlaylistForUser } from './player.js';
-import { registerUser, loginUser } from './firebase.js';
-import { initWebSocket } from './network.js';
-
+import { registerUser, loginUser, getUserToken} from './firebase.js';
+import { initWebSocket, sendCommand } from './network.js';
+import { openCalibration, closeCalibration, startCalibration, togglePostureCorrection, stopCamera } from './pose.js';
 let timeFmt = 12; // 시간 형식 (12시/24시)
 
 // PiP 모드와 메인 UI가 공유할 현재 상태 변수
@@ -24,12 +24,12 @@ function updateClock() {
   let h = d.getHours();
   let m = d.getMinutes();
   let suffix = '';
-  
+
   if (timeFmt === 12) {
     suffix = h < 12 ? ' AM' : ' PM';
     h = h % 12 || 12;
   }
-  
+
   timeEl.textContent = String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + suffix;
   dateEl.textContent = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + '(' + days[d.getDay()] + ')';
 }
@@ -37,7 +37,7 @@ function updateClock() {
 //  드래그기능
 function makeDraggable(el, handle) {
   handle = handle || el;
-  handle.style.touchAction = 'none'; 
+  handle.style.touchAction = 'none';
 
   let startMouseX = 0, startMouseY = 0;
   let dragOverlay = null;
@@ -45,8 +45,8 @@ function makeDraggable(el, handle) {
   handle.addEventListener('pointerdown', e => {
     if (e.target.closest('button, input, textarea, select, [contenteditable]')) return;
     e.preventDefault();
-    
-    window.isUIDragging = true; 
+
+    window.isUIDragging = true;
 
     // 간섭 방지 유리판
     dragOverlay = document.createElement('div');
@@ -59,9 +59,9 @@ function makeDraggable(el, handle) {
     el.style.top = rect.top + 'px';
     el.style.right = 'auto';
     el.style.bottom = 'auto';
-    el.style.willChange = 'transform'; 
+    el.style.willChange = 'transform';
 
-    startMouseX = e.clientX; 
+    startMouseX = e.clientX;
     startMouseY = e.clientY;
 
     const onMove = e2 => {
@@ -72,29 +72,29 @@ function makeDraggable(el, handle) {
 
     const onUp = () => {
       // 마우스를 놓으면 다시 3D 렌더링을 켭니다.
-      window.isUIDragging = false; 
+      window.isUIDragging = false;
 
       const finalRect = el.getBoundingClientRect();
       el.style.transform = 'none';
       el.style.left = Math.max(0, finalRect.left) + 'px';
       el.style.top = Math.max(0, finalRect.top) + 'px';
-      el.style.willChange = 'auto'; 
-      
+      el.style.willChange = 'auto';
+
       if (dragOverlay && dragOverlay.parentNode) {
         dragOverlay.parentNode.removeChild(dragOverlay);
       }
-      
+
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
     };
-    
+
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
   });
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  setInterval(updateClock, 1000); 
+  setInterval(updateClock, 1000);
   updateClock();
 
   const pomoDrag = document.getElementById('pomo-drag');
@@ -116,25 +116,24 @@ window.addEventListener('DOMContentLoaded', () => {
 // 외부로 내보내는 기능들 (export)
 // ============================================================================
 
-export async function checkLogin() { 
+export async function checkLogin() {
   const email = document.getElementById("lofi-id").value.trim();
   const pw = document.getElementById("lofi-pw").value.trim();
 
   // 테스트용 admin 계정 유지
   if (email === "admin" && pw === "1234") {
-    localStorage.setItem('lofi_user_id', 'admin'); 
-    reloadPlaylistForUser(); 
+    localStorage.setItem('lofi_user_id', 'admin');
+    reloadPlaylistForUser();
     closeLoginOverlay();
-    initWebSocket().catch((error) => console.warn("WebSocket 연결 실패:", error));
     return;
   }
 
   try {
     const userCredential = await loginUser(email, pw);
-    
-    localStorage.setItem('lofi_user_id', userCredential.user.email); 
-    reloadPlaylistForUser(); 
-    
+
+    localStorage.setItem('lofi_user_id', userCredential.user.email);
+    reloadPlaylistForUser();
+
     console.log("로그인 성공!", userCredential.user.email);
     closeLoginOverlay();
 
@@ -148,85 +147,170 @@ export async function checkLogin() {
 
 export function logout() {
   const isConfirmed = confirm("정말 종료하시겠습니까? (오늘의 리포트가 생성됩니다)");
-  if (!isConfirmed) return; 
-  
-  if (window.togglePlay && document.getElementById('play-btn').textContent === '⏸') {
-    window.togglePlay(); 
+  if (!isConfirmed) return;
+
+  if (typeof stopCamera === 'function') {
+    stopCamera();
   }
 
-  // 로그아웃 창으로 바로 가지 않고 리포트 창 띄우기
-  showDailyReport();
-}
+  if (window.togglePlay && document.getElementById('play-btn').textContent === '⏸') {
+    window.togglePlay();
+  }
 
-// 오늘의 리포트 생성 및 표시 함수
-function showDailyReport() {
-  //  임시 통계 데이터
-  const mockData = {
-    count: Math.floor(Math.random() * 15) + 5,      // 발생 횟수 (5~20회)
-    totalTime: Math.floor(Math.random() * 40) + 10, // 총 시간 (10~50분)
-    maxTime: Math.floor(Math.random() * 15) + 5,    // 최장 지속 시간 (5~20분)
-    avgDepth: (Math.random() * 3 + 2).toFixed(1),   // 무너짐 정도 (2.0~5.0cm)
-    chart: [
-      Math.floor(Math.random() * 30) + 10, // 오전 빈도
-      Math.floor(Math.random() * 50) + 20, // 오후 빈도
-      Math.floor(Math.random() * 20) + 5   // 저녁 빈도
-    ]
-  };
+  console.log("종료 처리 시작! 백엔드에 세션 종료 요청 및 리포트 강제 호출");
 
-  // 텍스트 업데이트
-  document.getElementById('report-count').innerHTML = `${mockData.count}<span style="font-size:16px">회</span>`;
-  document.getElementById('report-total-time').innerHTML = `${mockData.totalTime}<span style="font-size:16px">분</span>`;
-  document.getElementById('report-max-time').textContent = `${mockData.maxTime}분`;
-  document.getElementById('report-depth').textContent = `-${mockData.avgDepth}cm`;
+  // 1. 혹시 모를 열려있는 세션을 위해 종료 신호 전송
+  sendCommand("stop_session");
 
-  // 3시간대별 빈도 막대 그래프 렌더링
-  const chartContainer = document.getElementById('report-chart');
-  chartContainer.innerHTML = '';
-  const maxVal = Math.max(...mockData.chart, 50); // 최대 높이 기준
-  
-  mockData.chart.forEach(val => {
-    const heightPct = (val / maxVal) * 100;
-    // 애니메이션 효과를 위해 처음엔 height: 0으로 생성
-    const bar = document.createElement('div');
-    bar.className = 'chart-bar';
-    bar.style.height = '0%';
-    bar.title = `${val}회`;
-    chartContainer.appendChild(bar);
-    
-    // 약간의 딜레이 후 실제 높이 적용
-    setTimeout(() => { bar.style.height = `${heightPct}%`; }, 100);
-  });
-
-  // 리포트 오버레이 
-  const overlay = document.getElementById('report-overlay');
-  overlay.style.display = 'flex'; 
-  
   setTimeout(() => {
-    overlay.classList.add('active');
-  }, 10);
+    if (typeof fetchAndShowReport === 'function') {
+      fetchAndShowReport();
+    }
+  }, 1000);
+
+  // 3. 만약 4초가 지났는데도 리포트 화면이 안 뜬다면? (진짜로 오늘 데이터가 0초인 경우)
+  setTimeout(() => {
+    const overlay = document.getElementById('report-overlay');
+    // 리포트 오버레이가 안 열렸다면 강제 종료
+    if (!overlay || !overlay.classList.contains('active')) {
+      alert("오늘 측정된 기록이 없거나, 리포트를 불러올 수 없습니다. 안녕히 가세요!");
+      closeReportAndLogout();
+    }
+  }, 4000);
 }
 
-// 리포트 확인 후 최종 로그아웃 
+export async function fetchAndShowReport() {
+    try {
+        const token = await getUserToken();
+
+        // ✨ 캡처본에 있는 정확한 API 주소와 헤더 사용
+        const response = await fetch(`http://localhost:8000/api/users/me/report`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`서버 에러: ${response.status}`);
+        }
+
+        const realData = await response.json();
+        console.log("📊 리포트 데이터 도착:", realData);
+
+        // 데이터 화면에 그리기
+        showDailyReport(realData);
+
+    } catch (error) {
+        console.error("리포트 API 호출 에러:", error);
+        alert("리포트를 불러오는 중 오류가 발생했습니다.");
+        if (window.restoreUI) window.restoreUI();
+    }
+}
+
+// 2. 화면에 데이터 렌더링하기 (새로운 레이아웃 반영)
+export function showDailyReport(data) {
+    if (!data || !data.today) {
+        console.error("유효하지 않은 리포트 데이터입니다.");
+        return;
+    }
+
+    const today = data.today;
+    const weekly = data.weekly_trend || [];
+
+    // --- 좌측 상단: 3가지 핵심 지표 ---
+    // 초(sec)를 분(min)으로 반올림하고, 비율은 퍼센트(%)로 변환
+    const totalDurationMin = Math.round(today.total_turtle_duration_sec / 60);
+    const maxStreakMin = Math.round(today.longest_streak_sec / 60);
+    const turtleRatioPct = (today.turtle_ratio * 100).toFixed(1);
+
+    // HTML에 해당 ID가 있다고 가정하고 값 넣기
+    const totalEl = document.getElementById('report-total-time');
+    const maxEl = document.getElementById('report-max-time');
+    const ratioEl = document.getElementById('report-ratio');
+
+    if(totalEl) totalEl.innerHTML = `${totalDurationMin}<span style="font-size:16px">분</span>`;
+    if(maxEl) maxEl.innerHTML = `${maxStreakMin}<span style="font-size:16px">분</span>`;
+    if(ratioEl) ratioEl.innerHTML = `${turtleRatioPct}<span style="font-size:16px">%</span>`;
+
+
+    // --- [2] 우측 반: 지난 7일간 추이 그래프 ---
+    const chartContainer = document.getElementById('report-chart');
+    if (chartContainer) {
+        chartContainer.innerHTML = '';
+
+        // 막대그래프 렌더링 (가장 비율이 높은 날을 100% 높이로 잡거나, 절대 퍼센트로 잡음)
+        weekly.forEach(dayData => {
+            // date ("2026-05-22") 에서 "05-22"만 추출
+            const dateStr = dayData.date.slice(5);
+
+            // 비율(%) 계산 및 해당 날짜의 총 무너진 시간(분) 계산
+            const heightPct = dayData.turtle_ratio * 100;
+            const durationMin = Math.round((dayData.turtle_ratio * dayData.monitoring_duration_sec) / 60);
+
+            // 막대를 감싸는 컨테이너 (막대 + 날짜 라벨)
+            const barWrapper = document.createElement('div');
+            barWrapper.style.display = 'flex';
+            barWrapper.style.flexDirection = 'column';
+            barWrapper.style.alignItems = 'center';
+            barWrapper.style.flex = '1';
+
+            // 실제 차트 막대
+            const bar = document.createElement('div');
+            bar.className = 'chart-bar';
+            bar.style.height = '0%'; // 애니메이션 시작점
+            // 마우스 올렸을 때 툴팁으로 시간과 비율 표시
+            bar.title = `${durationMin}분 (${heightPct.toFixed(1)}%)`;
+
+            // 하단 날짜 텍스트
+            const label = document.createElement('span');
+            label.style.fontSize = '12px';
+            label.style.color = '#fff';
+            label.style.marginTop = '8px';
+            label.innerText = dateStr;
+
+            barWrapper.appendChild(bar);
+            barWrapper.appendChild(label);
+            chartContainer.appendChild(barWrapper);
+
+            // 스르륵 차오르는 애니메이션
+            setTimeout(() => { bar.style.height = `${heightPct}%`; }, 100);
+        });
+    }
+
+    // 리포트 오버레이 띄우기
+    const overlay = document.getElementById('report-overlay');
+    if (!overlay) return;
+    overlay.style.display = 'flex';
+
+    setTimeout(() => {
+        overlay.classList.add('active');
+    }, 10);
+}
+
 export function closeReportAndLogout() {
   const overlay = document.getElementById('report-overlay');
-  overlay.classList.remove('active'); 
+  if (overlay) overlay.classList.remove('active');
 
   localStorage.removeItem('lofi_user_id');
-  reloadPlaylistForUser(); 
-  
+  reloadPlaylistForUser();
+
+  if (typeof stopCamera === 'function') {
+    stopCamera();
+  }
+
   setTimeout(() => {
-    overlay.style.display = 'none';
-    
+    if (overlay) overlay.style.display = 'none';
+
     document.getElementById("lofi-id").value = "";
     document.getElementById("lofi-pw").value = "";
-    if (window.closeLoginForm) window.closeLoginForm(); 
+    if (window.closeLoginForm) window.closeLoginForm();
 
     const loginOverlay = document.getElementById("login-overlay");
-    loginOverlay.style.display = "flex"; 
+    loginOverlay.style.display = "flex";
     setTimeout(() => loginOverlay.style.opacity = "1", 10);
-  }, 600); 
+  }, 600);
 }
-
 export function togglePanel(id, btn) {
   const p = document.getElementById('panel-' + id);
   const wasOpen = p.classList.contains('open');
@@ -282,10 +366,10 @@ export let pipWindow = null;
 
 // 외부(콘솔, 웹소켓)에서 상태를 바꿀 때 호출할 함수
 export function setUIGlow(state) {
-  currentGlowState = state; 
-  
+  currentGlowState = state;
+
   // 메인 화면 전체 테두리 네온 효과 조작
-  const screenBorder = document.getElementById('warning-border'); 
+  const screenBorder = document.getElementById('warning-border');
   if (screenBorder) {
     if (state === 'idle') {
       screenBorder.style.boxShadow = 'none';
@@ -348,10 +432,10 @@ export async function togglePiP() {
       return;
     }
 
-    // 창 크기 조절 
+    // 창 크기 조절
     pipWindow = await documentPictureInPicture.requestWindow({ width: 320, height: 240 });
 
-    // CSS 복사 로직 
+    // CSS 복사 로직
     [...document.styleSheets].forEach(sheet => {
       try {
         const css = [...sheet.cssRules].map(r => r.cssText).join('');
@@ -372,7 +456,7 @@ export async function togglePiP() {
     wrap.innerHTML = `
       <div class="pip-canvas-container" id="pip-3d" style="position: absolute; inset: 0; z-index: 0;"></div>
       <div class="pip-neon" id="pip-neon" style="position: absolute; inset: 0; pointer-events: none; z-index: 2;"></div>
-      
+
       <div class="pip-overlay" style="z-index: 3;">
         <div class="pip-player-box" style="flex-direction: column; height: auto; gap: 4px; align-items: stretch;">
           <div style="display: flex; align-items: center; gap: 8px;">
@@ -415,7 +499,7 @@ export async function togglePiP() {
 //로그인 ↔ 회원가입 모드 전환 함수
 export function toggleSignupMode() {
   isSignupMode = !isSignupMode;
-  
+
   const title = document.getElementById('form-title');
   const pwConfirm = document.getElementById('lofi-pw-confirm');
   const submitBtn = document.getElementById('submit-btn');
@@ -438,7 +522,7 @@ export function toggleSignupMode() {
   }
 }
 
-//  회원가입 처리 함수 
+//  회원가입 처리 함수
 export async function handleSignup() {
   const email = document.getElementById("lofi-id").value.trim();
   const pw = document.getElementById("lofi-pw").value.trim();
@@ -452,11 +536,11 @@ export async function handleSignup() {
     // 🔥 firebase.js 의 함수 호출
     const userCredential = await registerUser(email, pw);
     console.log("가입 성공!", userCredential.user);
-    
+
     alert("회원가입이 완료되었습니다! 로그인해 주세요.");
     document.getElementById("lofi-pw").value = "";
     document.getElementById("lofi-pw-confirm").value = "";
-    toggleSignupMode(); 
+    toggleSignupMode();
 
   } catch (error) {
     console.error("회원가입 에러:", error);
@@ -467,8 +551,31 @@ export async function handleSignup() {
 }
 function closeLoginOverlay() {
   const overlay = document.getElementById("login-overlay");
-  overlay.style.opacity = "0"; 
+  overlay.style.opacity = "0";
   setTimeout(() => { overlay.style.display = "none"; }, 500);
   if (window.restoreUI) window.restoreUI();
 }
 
+window.testReport = function() {
+    const mockData = {
+        "today": {
+            "date": "2026-05-29",
+            "total_turtle_duration_sec": 2820.0,  // 47분
+            "longest_streak_sec": 420.0,         // 7분
+            "total_monitoring_duration_sec": 7200.0,
+            "turtle_ratio": 0.392                // 39.2%
+        },
+        "weekly_trend": [
+            { "date": "2026-05-23", "turtle_ratio": 0.45, "monitoring_duration_sec": 5400.0 },
+            { "date": "2026-05-24", "turtle_ratio": 0.41, "monitoring_duration_sec": 6200.0 },
+            { "date": "2026-05-25", "turtle_ratio": 0.38, "monitoring_duration_sec": 4800.0 },
+            { "date": "2026-05-26", "turtle_ratio": 0.40, "monitoring_duration_sec": 7000.0 },
+            { "date": "2026-05-27", "turtle_ratio": 0.36, "monitoring_duration_sec": 5600.0 },
+            { "date": "2026-05-28", "turtle_ratio": 0.35, "monitoring_duration_sec": 6800.0 },
+            { "date": "2026-05-29", "turtle_ratio": 0.392, "monitoring_duration_sec": 7200.0 }
+        ]
+    };
+
+    console.log("🔧 [Dev Mode] 가짜 데이터로 리포트 화면을 렌더링합니다!");
+    showDailyReport(mockData);
+};
