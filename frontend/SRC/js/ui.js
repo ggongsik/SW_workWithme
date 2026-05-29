@@ -152,24 +152,22 @@ export function logout() {
   if (window.togglePlay && document.getElementById('play-btn').textContent === '⏸') {
     window.togglePlay(); 
   }
-  if (window.isTracking) {
-    console.log("모니터링 중 Exit 클릭됨. 백엔드로 stop_session 전송!");
-    
-    sendCommand("stop_session");
-    
-  } else {
-    console.log("모니터링 중이 아님. 바로 종료 처리!");
-    alert("오늘 측정된 기록이 없습니다. 안녕히 가세요!");
-    closeReportAndLogout(); 
-  }
-}
+  
+  console.log("종료 처리 시작! 백엔드에 세션 종료 요청 및 리포트 강제 호출");
+  
+  // 1. 혹시 모를 열려있는 세션을 위해 종료 신호 전송
+  sendCommand("stop_session");
+  
+  setTimeout(() => {
+    if (typeof fetchAndShowReport === 'function') {
+      fetchAndShowReport();
+    }
+  }, 1000);
 
 export async function fetchAndShowReport() { 
     try {
-        // ✨ Firebase 토큰 가져오기 (백엔드 요구사항)
         const token = await getUserToken();
 
-        // ✨ 캡처본에 있는 정확한 API 주소와 헤더 사용
         const response = await fetch(`http://localhost:8000/api/users/me/report`, {
             method: 'GET',
             headers: {
@@ -277,13 +275,21 @@ export function showDailyReport(data) {
 // 리포트 확인 후 최종 로그아웃 
 export function closeReportAndLogout() {
   const overlay = document.getElementById('report-overlay');
-  overlay.classList.remove('active'); 
+  if (overlay) overlay.classList.remove('active'); 
 
   localStorage.removeItem('lofi_user_id');
   reloadPlaylistForUser(); 
   
+  // 💡 수정 3: 징그러운 좀비 웹캠 확실하게 전원 뽑아버리기 🔫
+  const videoEl = document.querySelector('video');
+  if (videoEl && videoEl.srcObject) {
+    videoEl.srcObject.getTracks().forEach(track => track.stop());
+    videoEl.srcObject = null;
+    console.log("웹캠 전원 완벽 차단 완료!");
+  }
+  
   setTimeout(() => {
-    overlay.style.display = 'none';
+    if (overlay) overlay.style.display = 'none';
     
     document.getElementById("lofi-id").value = "";
     document.getElementById("lofi-pw").value = "";
