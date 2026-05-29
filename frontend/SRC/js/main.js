@@ -18,6 +18,7 @@ import {
   changeMonth, selectCalDay, addCalLabel, deleteCalLabel 
 } from './tools.js';
 import { init3DScene } from './scene.js';
+import { initDebugMode } from './debug.js';
 
 
 // ============================================================================
@@ -90,6 +91,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // 3D 배경 및 캐릭터 렌더링 시작
   init3DScene();
+  initDebugMode();
 
   console.log("Lofi Space App Initialized!");
 });

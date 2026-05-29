@@ -24,12 +24,12 @@ function updateClock() {
   let h = d.getHours();
   let m = d.getMinutes();
   let suffix = '';
-  
+
   if (timeFmt === 12) {
     suffix = h < 12 ? ' AM' : ' PM';
     h = h % 12 || 12;
   }
-  
+
   timeEl.textContent = String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + suffix;
   dateEl.textContent = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + '(' + days[d.getDay()] + ')';
 }
@@ -37,7 +37,7 @@ function updateClock() {
 //  드래그기능
 function makeDraggable(el, handle) {
   handle = handle || el;
-  handle.style.touchAction = 'none'; 
+  handle.style.touchAction = 'none';
 
   let startMouseX = 0, startMouseY = 0;
   let dragOverlay = null;
@@ -45,8 +45,8 @@ function makeDraggable(el, handle) {
   handle.addEventListener('pointerdown', e => {
     if (e.target.closest('button, input, textarea, select, [contenteditable]')) return;
     e.preventDefault();
-    
-    window.isUIDragging = true; 
+
+    window.isUIDragging = true;
 
     // 간섭 방지 유리판
     dragOverlay = document.createElement('div');
@@ -59,9 +59,9 @@ function makeDraggable(el, handle) {
     el.style.top = rect.top + 'px';
     el.style.right = 'auto';
     el.style.bottom = 'auto';
-    el.style.willChange = 'transform'; 
+    el.style.willChange = 'transform';
 
-    startMouseX = e.clientX; 
+    startMouseX = e.clientX;
     startMouseY = e.clientY;
 
     const onMove = e2 => {
@@ -72,29 +72,29 @@ function makeDraggable(el, handle) {
 
     const onUp = () => {
       // 마우스를 놓으면 다시 3D 렌더링을 켭니다.
-      window.isUIDragging = false; 
+      window.isUIDragging = false;
 
       const finalRect = el.getBoundingClientRect();
       el.style.transform = 'none';
       el.style.left = Math.max(0, finalRect.left) + 'px';
       el.style.top = Math.max(0, finalRect.top) + 'px';
-      el.style.willChange = 'auto'; 
-      
+      el.style.willChange = 'auto';
+
       if (dragOverlay && dragOverlay.parentNode) {
         dragOverlay.parentNode.removeChild(dragOverlay);
       }
-      
+
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
     };
-    
+
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
   });
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  setInterval(updateClock, 1000); 
+  setInterval(updateClock, 1000);
   updateClock();
 
   const pomoDrag = document.getElementById('pomo-drag');
@@ -116,24 +116,24 @@ window.addEventListener('DOMContentLoaded', () => {
 // 외부로 내보내는 기능들 (export)
 // ============================================================================
 
-export async function checkLogin() { 
+export async function checkLogin() {
   const email = document.getElementById("lofi-id").value.trim();
   const pw = document.getElementById("lofi-pw").value.trim();
 
   // 테스트용 admin 계정 유지
   if (email === "admin" && pw === "1234") {
-    localStorage.setItem('lofi_user_id', 'admin'); 
-    reloadPlaylistForUser(); 
+    localStorage.setItem('lofi_user_id', 'admin');
+    reloadPlaylistForUser();
     closeLoginOverlay();
     return;
   }
 
   try {
     const userCredential = await loginUser(email, pw);
-    
-    localStorage.setItem('lofi_user_id', userCredential.user.email); 
-    reloadPlaylistForUser(); 
-    
+
+    localStorage.setItem('lofi_user_id', userCredential.user.email);
+    reloadPlaylistForUser();
+
     console.log("로그인 성공!", userCredential.user.email);
     closeLoginOverlay();
 
@@ -147,27 +147,27 @@ export async function checkLogin() {
 
 export function logout() {
   const isConfirmed = confirm("정말 종료하시겠습니까? (오늘의 리포트가 생성됩니다)");
-  if (!isConfirmed) return; 
+  if (!isConfirmed) return;
 
   if (typeof stopCamera === 'function') {
     stopCamera();
   }
-  
+
   if (window.togglePlay && document.getElementById('play-btn').textContent === '⏸') {
-    window.togglePlay(); 
+    window.togglePlay();
   }
-  
+
   console.log("종료 처리 시작! 백엔드에 세션 종료 요청 및 리포트 강제 호출");
-  
+
   // 1. 혹시 모를 열려있는 세션을 위해 종료 신호 전송
   sendCommand("stop_session");
-  
+
   setTimeout(() => {
     if (typeof fetchAndShowReport === 'function') {
       fetchAndShowReport();
     }
   }, 1000);
-  
+
   // 3. 만약 4초가 지났는데도 리포트 화면이 안 뜬다면? (진짜로 오늘 데이터가 0초인 경우)
   setTimeout(() => {
     const overlay = document.getElementById('report-overlay');
@@ -176,10 +176,10 @@ export function logout() {
       alert("오늘 측정된 기록이 없거나, 리포트를 불러올 수 없습니다. 안녕히 가세요!");
       closeReportAndLogout();
     }
-  }, 4000); 
+  }, 4000);
 }
 
-export async function fetchAndShowReport() { 
+export async function fetchAndShowReport() {
     try {
         const token = await getUserToken();
 
@@ -190,14 +190,14 @@ export async function fetchAndShowReport() {
                 'Authorization': `Bearer ${token}`
             }
         });
-        
+
         if (!response.ok) {
             throw new Error(`서버 에러: ${response.status}`);
         }
 
         const realData = await response.json();
         console.log("📊 리포트 데이터 도착:", realData);
-        
+
         // 데이터 화면에 그리기
         showDailyReport(realData);
 
@@ -224,12 +224,14 @@ export function showDailyReport(data) {
     const maxStreakMin = Math.round(today.longest_streak_sec / 60);
     const turtleRatioPct = (today.turtle_ratio * 100).toFixed(1);
 
-    const maxRatio = Math.max(...weekly.map(day => day.turtle_ratio));
+    const maxRatio = Math.max(0.01, ...weekly.map(day => (
+        Number.isFinite(day.turtle_ratio) ? day.turtle_ratio : 0
+    )));
 
     // HTML에 해당 ID가 있다고 가정하고 값 넣기
     const totalEl = document.getElementById('report-total-time');
     const maxEl = document.getElementById('report-max-time');
-    const ratioEl = document.getElementById('report-ratio'); 
+    const ratioEl = document.getElementById('report-ratio');
 
     if(totalEl) totalEl.innerHTML = `${totalDurationMin}<span style="font-size:16px">분</span>`;
     if(maxEl) maxEl.innerHTML = `${maxStreakMin}<span style="font-size:16px">분</span>`;
@@ -240,7 +242,7 @@ export function showDailyReport(data) {
     const chartContainer = document.getElementById('report-chart');
     if (chartContainer) {
         chartContainer.innerHTML = '';
-        
+
         // 💡 1. 그래프 배경에 깔끔한 가로 눈금선(Grid) 4줄 추가!
         for (let i = 1; i <= 4; i++) {
             const gridLine = document.createElement('div');
@@ -252,14 +254,16 @@ export function showDailyReport(data) {
             gridLine.style.zIndex = '0'; // 막대기 뒤로 숨기기
             chartContainer.appendChild(gridLine);
         }
-        
+
         weekly.forEach(dayData => {
-            const relativeHeightPct = (dayData.turtle_ratio / maxRatio) * 100;
+            const turtleRatio = Number.isFinite(dayData.turtle_ratio) ? dayData.turtle_ratio : 0;
+            const monitoringDurationSec = Number.isFinite(dayData.monitoring_duration_sec) ? dayData.monitoring_duration_sec : 0;
+            const relativeHeightPct = (turtleRatio / maxRatio) * 100;
             const targetHeight = Math.max(15, (relativeHeightPct / 100) * 250);
-            const dateStr = dayData.date.slice(5); 
-            const heightPct = dayData.turtle_ratio * 100;
-            const durationMin = Math.round((dayData.turtle_ratio * dayData.monitoring_duration_sec) / 60);
-            
+            const dateStr = typeof dayData.date === 'string' ? dayData.date.slice(5) : '-';
+            const heightPct = turtleRatio * 100;
+            const durationMin = Math.round((turtleRatio * monitoringDurationSec) / 60);
+
 
             const barWrapper = document.createElement('div');
             barWrapper.style.display = 'flex';
@@ -282,12 +286,13 @@ export function showDailyReport(data) {
 
             // 창이 커진 만큼 막대기도 30px로 조금 더 뚱뚱하게!
             const bar = document.createElement('div');
-            bar.style.width = '30px'; 
-            bar.style.backgroundColor = '#1DB954'; 
-            bar.style.borderRadius = '4px 4px 0 0'; 
-            bar.style.height = `${targetHeight}px`; 
-            bar.style.minHeight = `${targetHeight}px`; 
-            
+            bar.style.width = '30px';
+            bar.style.backgroundColor = '#1DB954';
+            bar.style.borderRadius = '4px 4px 0 0';
+            bar.style.height = `${targetHeight}px`;
+            bar.style.minHeight = `${targetHeight}px`;
+            bar.title = `${durationMin}분 (${heightPct.toFixed(1)}%)`;
+
             const label = document.createElement('span');
             label.style.fontSize = '13px';
             label.style.color = '#a0c0d8';
@@ -305,8 +310,8 @@ export function showDailyReport(data) {
     // 리포트 오버레이 띄우기
     const overlay = document.getElementById('report-overlay');
     if (!overlay) return;
-    overlay.style.display = 'flex'; 
-    
+    overlay.style.display = 'flex';
+
     setTimeout(() => {
         overlay.classList.add('active');
     }, 10);
@@ -314,26 +319,26 @@ export function showDailyReport(data) {
 
 export function closeReportAndLogout() {
   const overlay = document.getElementById('report-overlay');
-  if (overlay) overlay.classList.remove('active'); 
+  if (overlay) overlay.classList.remove('active');
 
   localStorage.removeItem('lofi_user_id');
-  reloadPlaylistForUser(); 
-  
+  reloadPlaylistForUser();
+
   if (typeof stopCamera === 'function') {
     stopCamera();
   }
-  
+
   setTimeout(() => {
     if (overlay) overlay.style.display = 'none';
-    
+
     document.getElementById("lofi-id").value = "";
     document.getElementById("lofi-pw").value = "";
-    if (window.closeLoginForm) window.closeLoginForm(); 
+    if (window.closeLoginForm) window.closeLoginForm();
 
     const loginOverlay = document.getElementById("login-overlay");
-    loginOverlay.style.display = "flex"; 
+    loginOverlay.style.display = "flex";
     setTimeout(() => loginOverlay.style.opacity = "1", 10);
-  }, 600); 
+  }, 600);
 }
 export function togglePanel(id, btn) {
   const p = document.getElementById('panel-' + id);
@@ -378,6 +383,8 @@ export function setTab(tab, el) {
   el.classList.add('on');
   document.getElementById('stab-gen').style.display = tab === 'gen' ? 'block' : 'none';
   document.getElementById('stab-audio').style.display = tab === 'audio' ? 'block' : 'none';
+  const debugTab = document.getElementById('stab-debug');
+  if (debugTab) debugTab.style.display = tab === 'debug' ? 'block' : 'none';
 }
 
 
@@ -388,10 +395,10 @@ export let pipWindow = null;
 
 // 외부(콘솔, 웹소켓)에서 상태를 바꿀 때 호출할 함수
 export function setUIGlow(state) {
-  currentGlowState = state; 
-  
+  currentGlowState = state;
+
   // 메인 화면 전체 테두리 네온 효과 조작
-  const screenBorder = document.getElementById('warning-border'); 
+  const screenBorder = document.getElementById('warning-border');
   if (screenBorder) {
     if (state === 'idle') {
       screenBorder.style.boxShadow = 'none';
@@ -454,10 +461,10 @@ export async function togglePiP() {
       return;
     }
 
-    // 창 크기 조절 
+    // 창 크기 조절
     pipWindow = await documentPictureInPicture.requestWindow({ width: 320, height: 240 });
 
-    // CSS 복사 로직 
+    // CSS 복사 로직
     [...document.styleSheets].forEach(sheet => {
       try {
         const css = [...sheet.cssRules].map(r => r.cssText).join('');
@@ -478,7 +485,7 @@ export async function togglePiP() {
     wrap.innerHTML = `
       <div class="pip-canvas-container" id="pip-3d" style="position: absolute; inset: 0; z-index: 0;"></div>
       <div class="pip-neon" id="pip-neon" style="position: absolute; inset: 0; pointer-events: none; z-index: 2;"></div>
-      
+
       <div class="pip-overlay" style="z-index: 3;">
         <div class="pip-player-box" style="flex-direction: column; height: auto; gap: 4px; align-items: stretch;">
           <div style="display: flex; align-items: center; gap: 8px;">
@@ -521,7 +528,7 @@ export async function togglePiP() {
 //로그인 ↔ 회원가입 모드 전환 함수
 export function toggleSignupMode() {
   isSignupMode = !isSignupMode;
-  
+
   const title = document.getElementById('form-title');
   const pwConfirm = document.getElementById('lofi-pw-confirm');
   const submitBtn = document.getElementById('submit-btn');
@@ -544,7 +551,7 @@ export function toggleSignupMode() {
   }
 }
 
-//  회원가입 처리 함수 
+//  회원가입 처리 함수
 export async function handleSignup() {
   const email = document.getElementById("lofi-id").value.trim();
   const pw = document.getElementById("lofi-pw").value.trim();
@@ -558,11 +565,11 @@ export async function handleSignup() {
     // 🔥 firebase.js 의 함수 호출
     const userCredential = await registerUser(email, pw);
     console.log("가입 성공!", userCredential.user);
-    
+
     alert("회원가입이 완료되었습니다! 로그인해 주세요.");
     document.getElementById("lofi-pw").value = "";
     document.getElementById("lofi-pw-confirm").value = "";
-    toggleSignupMode(); 
+    toggleSignupMode();
 
   } catch (error) {
     console.error("회원가입 에러:", error);
@@ -573,7 +580,7 @@ export async function handleSignup() {
 }
 function closeLoginOverlay() {
   const overlay = document.getElementById("login-overlay");
-  overlay.style.opacity = "0"; 
+  overlay.style.opacity = "0";
   setTimeout(() => { overlay.style.display = "none"; }, 500);
   if (window.restoreUI) window.restoreUI();
 }
@@ -584,7 +591,7 @@ window.testReport = function() {
             "date": "2026-05-29",
             "total_turtle_duration_sec": 2820.0,  // 47분
             "longest_streak_sec": 420.0,         // 7분
-            "total_monitoring_duration_sec": 7200.0, 
+            "total_monitoring_duration_sec": 7200.0,
             "turtle_ratio": 0.392                // 39.2%
         },
         "weekly_trend": [

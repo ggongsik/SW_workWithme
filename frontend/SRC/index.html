@@ -9,9 +9,9 @@
   <!-- MediaPipe 라이브러리 -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script> 
-  
-  <Three.js 라이브러리 불러오기 추가 -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+
+  <!-- Three.js 라이브러리 불러오기 추가 -->
   <script type="importmap">
   {
     "imports": {
@@ -31,13 +31,13 @@
 
 <div id="root">
   <canvas id="bg-canvas" style="position:absolute; inset:0; width:100%; height:100%; z-index:0; display:block;"></canvas>
-  
+
   <!-- 로그인 오버레이 -->
   <div id="login-overlay">
     <div class="login-top-title">studywith<span>자세교정</span></div>
 
     <div class="intro-container">
-      
+
       <div class="intro-left-zone">
         <div class="intro-text-zone">
           <h1 class="hero-title">
@@ -49,27 +49,27 @@
             플레이리스트와 함께 생산성을 극대화하세요.
           </p>
         </div>
-        
+
         <div class="intro-art-zone">
           <div class="art-placeholder"></div>
         </div>
       </div>
-      
+
       <div class="intro-right-zone">
         <div class="main-login-box" id="main-login-box">
           <h3 id="form-title" style="color:#fff; margin:0 0 15px 0; font-size:18px; text-align:center;">로그인</h3>
-    
+
           <input type="text" id="lofi-id" class="login-input-new" placeholder="이메일 계정" />
           <input type="password" id="lofi-pw" class="login-input-new" placeholder="비밀번호" onkeydown="if(event.key==='Enter' && !isSignupMode) checkLogin()" />
           <input type="password" id="lofi-pw-confirm" class="login-input-new" placeholder="비밀번호 확인" style="display:none;" />
-    
+
           <div style="margin-top: 8px;">
             <button class="submit-btn-new" id="submit-btn" onclick="checkLogin()">입장하기</button>
           </div>
 
           <div style="text-align:center; margin-top:15px; font-size:13px; color:#a0c0d8;">
             <span id="toggle-mode-text">
-              계정이 없으신가요? 
+              계정이 없으신가요?
               <a href="#" onclick="toggleSignupMode()" style="color:#1DB954; text-decoration:none; font-weight:bold;">회원가입</a>
             </span>
           </div>
@@ -78,62 +78,52 @@
     </div>
   </div>
   </div>
-  <div class="login-form-panel" id="login-form-panel">
-    <div style="text-align:right;">
-      <button onclick="closeLoginForm()" style="background:none; border:none; color:#a0c0d8; cursor:pointer; font-size:12px;">✕</button>
-    </div>
-    <div class="login-form-header">Lo-fi Space 접속</div>
-    <input type="text" id="lofi-id" class="login-input" placeholder="아이디(이메일계정)" />
-    <input type="password" id="lofi-pw" class="login-input" placeholder="비밀번호" onkeydown="if(event.key==='Enter') checkLogin()" />
-    <button class="login-btn" onclick="checkLogin()">입장하기</button>
-  </div>
-  </div>
 
   <div class="report-overlay" id="report-overlay" style="display: none;">
-  <div class="report-container" style="max-width: 900px; width: 95%; padding: 30px;">
-    <h2 class="report-title">오늘의 자세 리포트</h2>
-      
-    <div class="report-content" style="display: flex; gap: 20px; align-items: stretch;">
-        
-      <div style="flex: 1; display: flex; flex-direction: column; gap: 20px;">
-          
-        <div style="display: flex; flex-direction: column; gap: 15px;">
-          <div class="report-box" style="padding: 15px;">
-            <h3 style="font-size: 14px; margin-bottom: 5px; color:#a0c0d8;">오늘 자세가 무너진 시간</h3>
-            <div class="report-value" id="report-total-time" style="font-size: 28px; color:#fff;">0<span style="font-size:16px">분</span></div>
+    <div class="report-container" style="max-width: 900px; width: 95%; padding: 30px;">
+      <h2 class="report-title">오늘의 자세 리포트</h2>
+
+      <div class="report-content" style="display: flex; gap: 20px; align-items: stretch;">
+
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 20px;">
+
+          <div style="display: flex; flex-direction: column; gap: 15px;">
+            <div class="report-box" style="padding: 15px;">
+              <h3 style="font-size: 14px; margin-bottom: 5px; color:#a0c0d8;">오늘 자세가 무너진 시간</h3>
+              <div class="report-value" id="report-total-time" style="font-size: 28px; color:#fff;">0<span style="font-size:16px">분</span></div>
+            </div>
+            <div style="display: flex; gap: 15px;">
+              <div class="report-box" style="flex: 1; padding: 15px;">
+                <h3 style="font-size: 13px; margin-bottom: 5px; color:#a0c0d8;">최장 지속 시간</h3>
+                <div class="report-value" id="report-max-time" style="font-size: 22px; color:#fca5a5;">0<span style="font-size:14px">분</span></div>
+              </div>
+              <div class="report-box" style="flex: 1; padding: 15px;">
+                <h3 style="font-size: 13px; margin-bottom: 5px; color:#a0c0d8;">거북목 비율</h3>
+                <div class="report-value" id="report-ratio" style="font-size: 22px; color:#fca5a5;">0<span style="font-size:14px">%</span></div>
+              </div>
+            </div>
           </div>
-          <div style="display: flex; gap: 15px;">
-            <div class="report-box" style="flex: 1; padding: 15px;">
-              <h3 style="font-size: 13px; margin-bottom: 5px; color:#a0c0d8;">최장 지속 시간</h3>
-              <div class="report-value" id="report-max-time" style="font-size: 22px; color:#fca5a5;">0<span style="font-size:14px">분</span></div>
+
+          <div class="report-box" style="flex: 1; padding: 15px; display: flex; flex-direction: column; min-height: 250px;">
+            <h3 style="margin-bottom: 10px; color:#a0c0d8; font-size: 14px;">거북목 교정에 좋은 추천 스트레칭</h3>
+            <div style="flex: 1; width: 100%; background: #000; border-radius: 8px; overflow: hidden; border: 1px solid rgba(0, 180, 255, 0.2);">
+              <iframe width="100%" height="100%" src="https://www.youtube.com/embed/-nJkOEQ_HGE" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
             </div>
-            <div class="report-box" style="flex: 1; padding: 15px;">
-              <h3 style="font-size: 13px; margin-bottom: 5px; color:#a0c0d8;">거북목 비율</h3>
-              <div class="report-value" id="report-ratio" style="font-size: 22px; color:#fca5a5;">0<span style="font-size:14px">%</span></div>
-            </div>
+          </div>
+
+        </div>
+
+        <div class="report-box" style="flex: 1; padding: 20px; display: flex; flex-direction: column;">
+          <h3 style="margin-bottom: 20px; color:#a0c0d8; text-align: center;">최근 7일 거북목 추이</h3>
+
+          <div class="chart-container" id="report-chart" style="flex: 1; display: flex; align-items: flex-end; gap: 15px; border-bottom: 1px solid rgba(0, 180, 255, 0.4); padding-bottom: 5px; position: relative;">
           </div>
         </div>
 
-        <div class="report-box" style="flex: 1; padding: 15px; display: flex; flex-direction: column; min-height: 250px;">
-          <h3 style="margin-bottom: 10px; color:#a0c0d8; font-size: 14px;">거북목 교정에 좋은 추천 스트레칭</h3>
-          <div style="flex: 1; width: 100%; background: #000; border-radius: 8px; overflow: hidden; border: 1px solid rgba(0, 180, 255, 0.2);">
-            <iframe width="100%" height="100%" src="https://www.youtube.com/embed/-nJkOEQ_HGE" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-          </div>
-        </div>
-          
       </div>
-
-      <div class="report-box" style="flex: 1; padding: 20px; display: flex; flex-direction: column;">
-        <h3 style="margin-bottom: 20px; color:#a0c0d8; text-align: center;">최근 7일 거북목 추이</h3>
-          
-        <div class="chart-container" id="report-chart" style="flex: 1; display: flex; align-items: flex-end; gap: 15px; border-bottom: 1px solid rgba(0, 180, 255, 0.4); padding-bottom: 5px; position: relative;">
-        </div>
-      </div>
-        
-    </div> <button class="report-btn" onclick="closeReportAndLogout()" style="margin-top: 25px; width: 100%;">리포트 닫기 및 최종 로그아웃</button>
+      <button class="report-btn" onclick="closeReportAndLogout()" style="margin-top: 25px; width: 100%;">리포트 닫기 및 최종 로그아웃</button>
+    </div>
   </div>
-</div>
-</div>
 
   <!-- 캘리브레이션 오버레이 -->
   <div id="calib-overlay">
@@ -142,14 +132,14 @@
         <h2>지금 가장 편안한 바른 자세를 유지해주세요</h2>
         <p>10초간 측정하여 내 체형에 맞는 기준값을 설정합니다</p>
       </div>
-      
+
       <div class="calib-content">
         <div class="calib-left">
           <video id="calib-video" autoplay playsinline></video>
           <canvas id="calib-canvas"></canvas>
           <div id="calib-status-badge">카메라 준비 중...</div>
         </div>
-        
+
         <div class="calib-right">
           <div class="guide-item">
             <span class="guide-icon">📷</span>
@@ -362,7 +352,7 @@
   <div class="panel" id="panel-pl" style="bottom:120px;top:auto;left:40px;right:auto;width:300px;">
     <div class="panel-header" data-panel="pl"><span>플레이리스트</span><button class="panel-close" onclick="closePanel('pl','pl-toggle-btn')">✕</button></div>
     <div class="panel-body" style="overflow-y:auto;max-height:220px;" id="pl-body"></div>
-    
+
     <div class="pl-add-row">
       <div class="pl-add-btn" onclick="document.getElementById('file-input').click()">
         파일 추가
@@ -396,6 +386,7 @@
       <div class="setting-tabs">
         <div class="stab on" onclick="setTab('gen',this)">전반</div>
         <div class="stab" onclick="setTab('audio',this)">오디오</div>
+        <div class="stab" onclick="setTab('debug',this)">Debug</div>
       </div>
       <div id="stab-gen">
         <div class="setting-row">
@@ -426,6 +417,32 @@
         <div class="setting-row" style="margin-top:4px;">
           <span class="setting-label">포모도로 SE</span>
           <div class="toggle-pair"><div class="tpill on">켬</div><div class="tpill">끔</div></div>
+        </div>
+      </div>
+      <div id="stab-debug" style="display:none;">
+        <div class="setting-row">
+          <span class="setting-label">Debug mode</span>
+          <label class="debug-switch"><input id="debug-toggle" type="checkbox" onchange="toggleDebugMode(this.checked)"><span></span></label>
+        </div>
+        <div id="debug-panel" hidden>
+          <div class="debug-status-grid">
+            <div><span>Tracking</span><strong id="debug-tracking-status" data-state="warn">idle</strong></div>
+            <div><span>Posture</span><strong id="debug-posture-state" data-state="idle">NORMAL</strong></div>
+            <div><span>Forced</span><strong id="debug-forced-state">OFF</strong></div>
+            <div><span>WebSocket</span><strong id="debug-ws-state">closed</strong></div>
+          </div>
+          <div class="debug-force-row">
+            <button onclick="forceDebugState('idle')">Normal</button>
+            <button onclick="forceDebugState('warn')">Warning</button>
+            <button onclick="forceDebugState('alert')">Alert</button>
+            <button onclick="clearDebugState()">Auto</button>
+          </div>
+          <div id="debug-performance" class="debug-performance"></div>
+          <div class="debug-log-toolbar">
+            <span>WebSocket / posture log</span>
+            <button onclick="clearDebugLogs()">Clear</button>
+          </div>
+          <div id="debug-log-list" class="debug-log-list"></div>
         </div>
       </div>
     </div>

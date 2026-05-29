@@ -55,7 +55,7 @@ export function saveCurrentNote() {
   if (!notes.length) return;
   notes[activeNote].title = document.getElementById('note-title-input').value;
   notes[activeNote].content = document.getElementById('note-textarea').value;
-  
+
   const items = document.querySelectorAll('#note-list .note-item');
   if (items[activeNote]) {
     items[activeNote].querySelector('.note-item-title').textContent = notes[activeNote].title || '(제목 없음)';
@@ -148,34 +148,34 @@ function renderCal() {
   if (!labelEl || !gridEl) return;
 
   labelEl.textContent = `${calYear} / ${String(calMonth + 1).padStart(2, '0')}`;
-  
+
   const today = new Date();
   const first = new Date(calYear, calMonth, 1).getDay();
   const days = new Date(calYear, calMonth + 1, 0).getDate();
-  
+
   let html = ['일', '월', '화', '수', '목', '금', '토']
     .map(d => `<div class="cal-dow">${d}</div>`).join('');
-    
+
   for (let i = 0; i < first; i++) {
     html += `<div class="cal-day empty">·</div>`;
   }
-  
+
   for (let i = 1; i <= days; i++) {
     const isT = (i === today.getDate() && calMonth === today.getMonth() && calYear === today.getFullYear());
     const key = calDateKey(calYear, calMonth, i);
     const hasL = calLabels[key] && calLabels[key].length > 0;
     const isSel = (calSelectedDate === key);
-    
+
     html += `
-      <div class="cal-day${isT ? ' today' : ''}${hasL ? ' has-label' : ''}${isSel ? ' today' : ''}" 
-           style="${isSel ? 'background:rgba(0,100,180,0.3);' : ''}" 
+      <div class="cal-day${isT ? ' today' : ''}${hasL ? ' has-label' : ''}${isSel ? ' today' : ''}"
+           style="${isSel ? 'background:rgba(0,100,180,0.3);' : ''}"
            onclick="selectCalDay(${i})">
         ${i}
       </div>`;
   }
-  
+
   gridEl.innerHTML = html;
-  
+
   if (calSelectedDate) {
     renderCalLabelPanel();
   }
@@ -200,7 +200,7 @@ export function selectCalDay(day) {
   calSelectedDate = key;
   renderCal();
   renderCalLabelPanel();
-  
+
   document.getElementById('cal-label-panel').classList.add('open');
   document.getElementById('cal-label-input').focus();
 }
@@ -209,13 +209,13 @@ export function selectCalDay(day) {
 function renderCalLabelPanel() {
   const key = calSelectedDate;
   if (!key) return;
-  
+
   const [y, m, d] = key.split('-');
   document.getElementById('cal-selected-date').textContent = `${y}년 ${parseInt(m)}월 ${parseInt(d)}일`;
-  
+
   const labels = calLabels[key] || [];
   const listEl = document.getElementById('cal-label-list');
-  
+
   if (labels.length === 0) {
     listEl.innerHTML = '<div style="font-size:11px;color:#3d6070;padding:2px 0;">등록된 일정이 없습니다</div>';
   } else {
@@ -233,14 +233,14 @@ function renderCalLabelPanel() {
 export function addCalLabel() {
   const inp = document.getElementById('cal-label-input');
   if (!inp.value.trim() || !calSelectedDate) return;
-  
+
   if (!calLabels[calSelectedDate]) {
     calLabels[calSelectedDate] = [];
   }
-  
+
   calLabels[calSelectedDate].push(inp.value.trim());
   inp.value = '';
-  
+
   renderCal();
   renderCalLabelPanel();
 }
@@ -258,6 +258,14 @@ export function deleteCalLabel(key, i) {
 // ============================================================================
 // ── 4. 모듈 초기화 실행 ──
 // ============================================================================
-renderNotes();
-renderTodos();
-renderCal();
+function initTools() {
+  renderNotes();
+  renderTodos();
+  renderCal();
+}
+
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', initTools, { once: true });
+} else {
+  initTools();
+}

@@ -2,9 +2,13 @@
 
 import uuid # 고유 ID 생성
 import time
-from typing import Dict, Optional, List # 'Optional[float] = None' : float, None이 올 수 있는데 기본값은 None
+from typing import Any, Dict, Optional, List, TYPE_CHECKING # 'Optional[float] = None' : float, None이 올 수 있는데 기본값은 None
 from dataclasses import dataclass, field
-from fastapi import WebSocket
+
+if TYPE_CHECKING:
+    from fastapi import WebSocket
+else:
+    WebSocket = Any
 
 @dataclass
 class PostureEvent:
@@ -50,11 +54,11 @@ class ConnectionManager:
         state = SessionState(session_id = session_id, websocket = websocket, user_id = user_id)
         self.sessions[session_id] = state
         return state
-    
+
     def disconnect(self, session_id: str) -> None:
         self.sessions.pop(session_id, None)
 
-    def get(self, session_id: str) -> SessionState:
+    def get(self, session_id: str) -> Optional[SessionState]:
         return self.sessions.get(session_id)
 
     @property # a = ConnectionManager(); a.active_count; -> 메서드를 변수처럼 쓰도록
@@ -62,7 +66,3 @@ class ConnectionManager:
         return len(self.sessions)
 
 manager = ConnectionManager() # 모듈 맨 아래에서 인스턴스 하나 만들어서 모든 곳에서 from app.websocket.manager import manager로 import해 공유.
-
-    
-
-    

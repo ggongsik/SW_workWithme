@@ -186,11 +186,32 @@ let activeScene = null;
 let activeCharacterKey = 'miku';
 let activePoseName = 'idle';
 let loadRequestId = 0;
+const loadedCharacters = new Map();
 
 function applyTransform(vrm, transform) {
   vrm.scene.position.set(...transform.position);
   vrm.scene.rotation.set(...transform.rotation);
   vrm.scene.scale.setScalar(transform.scale);
+}
+
+function setActiveCharacter(characterKey, vrm) {
+  if (window.currentVRM?.scene && window.currentVRM !== vrm) {
+    window.currentVRM.scene.visible = false;
+  }
+
+  const config = CHARACTER_CONFIGS[characterKey];
+  activeCharacterKey = characterKey;
+  window.currentCharacter = characterKey;
+  window.currentVRM = vrm;
+  window.currentVRM.scene.visible = true;
+  window.breathingBones = {
+    chest: vrm.humanoid.getNormalizedBoneNode('chest'),
+    spine: vrm.humanoid.getNormalizedBoneNode('spine'),
+  };
+
+  applyTransform(vrm, config.transform);
+  syncCharacterButtons();
+  change3DPose(activePoseName);
 }
 
 function syncCharacterButtons() {
@@ -199,17 +220,21 @@ function syncCharacterButtons() {
   });
 }
 
-function disposeCurrentCharacter() {
-  if (!window.currentVRM?.scene) return;
-  if (activeScene) activeScene.remove(window.currentVRM.scene);
-  window.currentVRM.scene.traverse((node) => {
+function disposeVRM(vrm) {
+  if (!vrm?.scene) return;
+  if (activeScene) activeScene.remove(vrm.scene);
+  vrm.scene.traverse((node) => {
     if (!node.isMesh) return;
     node.geometry?.dispose?.();
     const materials = Array.isArray(node.material) ? node.material : [node.material];
-    materials.forEach((material) => material?.dispose?.());
+    materials.forEach((material) => {
+      if (!material) return;
+      ['map', 'normalMap', 'emissiveMap', 'roughnessMap', 'metalnessMap', 'alphaMap'].forEach((key) => {
+        material[key]?.dispose?.();
+      });
+      material.dispose?.();
+    });
   });
-  window.currentVRM = null;
-  window.targetPoseEntries = [];
 }
 
 function getActiveConfig() {
@@ -226,36 +251,31 @@ export function switchCharacter(characterKey = 'miku') {
   const config = CHARACTER_CONFIGS[characterKey];
   if (!config || !activeScene) return Promise.resolve(null);
 
-  activeCharacterKey = characterKey;
   const requestId = ++loadRequestId;
-  window.currentCharacter = characterKey;
+  const cachedVRM = loadedCharacters.get(characterKey);
+  if (cachedVRM) {
+    setActiveCharacter(characterKey, cachedVRM);
+    return Promise.resolve(cachedVRM);
+  }
+
   window.targetPoseEntries = [];
-  syncCharacterButtons();
-  disposeCurrentCharacter();
 
   return new Promise((resolve, reject) => {
     loader.load(
       config.path,
       (gltf) => {
         if (requestId !== loadRequestId) {
-          gltf.userData.vrm?.scene?.traverse((node) => {
-            if (!node.isMesh) return;
-            node.geometry?.dispose?.();
-            const materials = Array.isArray(node.material) ? node.material : [node.material];
-            materials.forEach((material) => material?.dispose?.());
-          });
+          disposeVRM(gltf.userData.vrm);
           resolve(null);
           return;
         }
 
         const vrm = gltf.userData.vrm;
         VRMUtils.rotateVRM0(vrm);
+        loadedCharacters.set(characterKey, vrm);
 
-        window.currentVRM = vrm;
-        applyTransform(vrm, config.transform);
         activeScene.add(vrm.scene);
-
-        change3DPose(activePoseName);
+        setActiveCharacter(characterKey, vrm);
         console.log(`${config.label} 로드 완료 및 ${activePoseName.toUpperCase()} 포즈 적용됨`);
         resolve(vrm);
       },
@@ -286,12 +306,15 @@ export function change3DPose(poseName) {
   }
 
   activePoseName = poseName;
-  const targetPose = {};
+  const targetPoseEntries = [];
   for (const [boneName, euler] of Object.entries(pose.bones)) {
-    targetPose[boneName] = { x: euler.x, y: euler.y, z: euler.z };
+    const bone = window.currentVRM.humanoid.getNormalizedBoneNode(boneName);
+    if (bone) {
+      targetPoseEntries.push({ bone, target: { x: euler.x, y: euler.y, z: euler.z } });
+    }
   }
 
-  window.targetPoseEntries = Object.entries(targetPose);
+  window.targetPoseEntries = targetPoseEntries;
 
   if (window.currentVRM.expressionManager) {
     ['happy', 'sad', 'angry', 'surprised', 'neutral'].forEach((expression) => {
