@@ -6,7 +6,7 @@
 import { reloadPlaylistForUser } from './player.js';
 import { registerUser, loginUser, getUserToken} from './firebase.js';
 import { initWebSocket, sendCommand } from './network.js';
-
+import { openCalibration, closeCalibration, startCalibration, togglePostureCorrection, stopCamera } from './pose.js';
 let timeFmt = 12; // 시간 형식 (12시/24시)
 
 // PiP 모드와 메인 UI가 공유할 현재 상태 변수
@@ -148,25 +148,39 @@ export async function checkLogin() {
 export function logout() {
   const isConfirmed = confirm("정말 종료하시겠습니까? (오늘의 리포트가 생성됩니다)");
   if (!isConfirmed) return; 
+
+  if (typeof stopCamera === 'function') {
+    stopCamera();
+  }
   
   if (window.togglePlay && document.getElementById('play-btn').textContent === '⏸') {
     window.togglePlay(); 
   }
-  if (window.isTracking) {
-    console.log("모니터링 중 Exit 클릭됨. 백엔드로 stop_session 전송!");
-    
-    sendCommand("stop_session");
-    
-  } else {
-    console.log("모니터링 중이 아님. 바로 종료 처리!");
-    alert("오늘 측정된 기록이 없습니다. 안녕히 가세요!");
-    closeReportAndLogout(); 
-  }
+  
+  console.log("종료 처리 시작! 백엔드에 세션 종료 요청 및 리포트 강제 호출");
+  
+  // 1. 혹시 모를 열려있는 세션을 위해 종료 신호 전송
+  sendCommand("stop_session");
+  
+  setTimeout(() => {
+    if (typeof fetchAndShowReport === 'function') {
+      fetchAndShowReport();
+    }
+  }, 1000);
+  
+  // 3. 만약 4초가 지났는데도 리포트 화면이 안 뜬다면? (진짜로 오늘 데이터가 0초인 경우)
+  setTimeout(() => {
+    const overlay = document.getElementById('report-overlay');
+    // 리포트 오버레이가 안 열렸다면 강제 종료
+    if (!overlay || !overlay.classList.contains('active')) {
+      alert("오늘 측정된 기록이 없거나, 리포트를 불러올 수 없습니다. 안녕히 가세요!");
+      closeReportAndLogout();
+    }
+  }, 4000); 
 }
 
 export async function fetchAndShowReport() { 
     try {
-        // ✨ Firebase 토큰 가져오기 (백엔드 요구사항)
         const token = await getUserToken();
 
         // ✨ 캡처본에 있는 정확한 API 주소와 헤더 사용
@@ -274,16 +288,19 @@ export function showDailyReport(data) {
     }, 10);
 }
 
-// 리포트 확인 후 최종 로그아웃 
 export function closeReportAndLogout() {
   const overlay = document.getElementById('report-overlay');
-  overlay.classList.remove('active'); 
+  if (overlay) overlay.classList.remove('active'); 
 
   localStorage.removeItem('lofi_user_id');
   reloadPlaylistForUser(); 
   
+  if (typeof stopCamera === 'function') {
+    stopCamera();
+  }
+  
   setTimeout(() => {
-    overlay.style.display = 'none';
+    if (overlay) overlay.style.display = 'none';
     
     document.getElementById("lofi-id").value = "";
     document.getElementById("lofi-pw").value = "";
@@ -294,7 +311,6 @@ export function closeReportAndLogout() {
     setTimeout(() => loginOverlay.style.opacity = "1", 10);
   }, 600); 
 }
-
 export function togglePanel(id, btn) {
   const p = document.getElementById('panel-' + id);
   const wasOpen = p.classList.contains('open');
