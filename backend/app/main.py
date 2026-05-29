@@ -2,6 +2,7 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, status
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from app.websocket.handlers import handle_posture_connection, _ai_pipeline
 from app.websocket.manager import manager
 from app.models.db import init_db
@@ -40,6 +41,19 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan
 )
+
+# localhost와 127.0.0.1은 브라우저상 다른 origin이라, 프론트가 절대 URL로
+# 요청하면 접속 주소에 따라 cross-origin이 된다. 양쪽 모두 허용.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(report_router)
 
 @app.get("/health")
