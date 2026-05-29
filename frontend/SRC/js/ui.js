@@ -224,6 +224,8 @@ export function showDailyReport(data) {
     const maxStreakMin = Math.round(today.longest_streak_sec / 60);
     const turtleRatioPct = (today.turtle_ratio * 100).toFixed(1);
 
+    const maxRatio = Math.max(...weekly.map(day => day.turtle_ratio));
+
     // HTML에 해당 ID가 있다고 가정하고 값 넣기
     const totalEl = document.getElementById('report-total-time');
     const maxEl = document.getElementById('report-max-time');
@@ -239,42 +241,64 @@ export function showDailyReport(data) {
     if (chartContainer) {
         chartContainer.innerHTML = '';
         
-        // 막대그래프 렌더링 (가장 비율이 높은 날을 100% 높이로 잡거나, 절대 퍼센트로 잡음)
+        // 💡 1. 그래프 배경에 깔끔한 가로 눈금선(Grid) 4줄 추가!
+        for (let i = 1; i <= 4; i++) {
+            const gridLine = document.createElement('div');
+            gridLine.style.position = 'absolute';
+            gridLine.style.bottom = `${i * 25}%`; // 25%, 50%, 75%, 100% 높이에 배치
+            gridLine.style.left = '0';
+            gridLine.style.right = '0';
+            gridLine.style.borderBottom = '1px dashed rgba(255, 255, 255, 0.15)'; // 반투명 점선
+            gridLine.style.zIndex = '0'; // 막대기 뒤로 숨기기
+            chartContainer.appendChild(gridLine);
+        }
+        
         weekly.forEach(dayData => {
-            // date ("2026-05-22") 에서 "05-22"만 추출
+            const relativeHeightPct = (dayData.turtle_ratio / maxRatio) * 100;
+            const targetHeight = Math.max(15, (relativeHeightPct / 100) * 250);
             const dateStr = dayData.date.slice(5); 
-            
-            // 비율(%) 계산 및 해당 날짜의 총 무너진 시간(분) 계산
             const heightPct = dayData.turtle_ratio * 100;
             const durationMin = Math.round((dayData.turtle_ratio * dayData.monitoring_duration_sec) / 60);
+            
 
-            // 막대를 감싸는 컨테이너 (막대 + 날짜 라벨)
             const barWrapper = document.createElement('div');
             barWrapper.style.display = 'flex';
             barWrapper.style.flexDirection = 'column';
             barWrapper.style.alignItems = 'center';
+            barWrapper.style.justifyContent = 'flex-end';
             barWrapper.style.flex = '1';
+            barWrapper.style.zIndex = '1'; // 눈금선보다 앞에 오게 설정
 
-            // 실제 차트 막대
+            // 💡 2. [핵심] 텍스트를 "분"과 "(%)" 두 줄로 표시!
+            const valueLabel = document.createElement('div');
+            valueLabel.style.fontSize = '12px';
+            valueLabel.style.fontWeight = 'bold';
+            valueLabel.style.color = '#1DB954'; 
+            valueLabel.style.marginBottom = '6px';
+            valueLabel.style.textAlign = 'center'; 
+            valueLabel.style.lineHeight = '1.3'; // 줄간격
+            // 분(min)을 크게, 퍼센트(%)는 약간 작고 흐리게 표시
+            valueLabel.innerHTML = `${durationMin}분<br><span style="font-size:10px; color:#888;">(${Math.round(heightPct)}%)</span>`; 
+
+            // 창이 커진 만큼 막대기도 30px로 조금 더 뚱뚱하게!
             const bar = document.createElement('div');
-            bar.className = 'chart-bar';
-            bar.style.height = '0%'; // 애니메이션 시작점
-            // 마우스 올렸을 때 툴팁으로 시간과 비율 표시
-            bar.title = `${durationMin}분 (${heightPct.toFixed(1)}%)`; 
+            bar.style.width = '30px'; 
+            bar.style.backgroundColor = '#1DB954'; 
+            bar.style.borderRadius = '4px 4px 0 0'; 
+            bar.style.height = `${targetHeight}px`; 
+            bar.style.minHeight = `${targetHeight}px`; 
             
-            // 하단 날짜 텍스트
             const label = document.createElement('span');
-            label.style.fontSize = '12px';
-            label.style.color = '#fff';
+            label.style.fontSize = '13px';
+            label.style.color = '#a0c0d8';
             label.style.marginTop = '8px';
             label.innerText = dateStr;
 
+            // 조립하기
+            barWrapper.appendChild(valueLabel);
             barWrapper.appendChild(bar);
             barWrapper.appendChild(label);
             chartContainer.appendChild(barWrapper);
-            
-            // 스르륵 차오르는 애니메이션
-            setTimeout(() => { bar.style.height = `${heightPct}%`; }, 100);
         });
     }
 
