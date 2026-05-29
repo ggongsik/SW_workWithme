@@ -104,18 +104,32 @@ function startPostureTracking() {
 
 export let isTracking = false; 
 
-function stopCamera() {
+export function stopCamera() {
+  // 1. MediaPipe 겉핥기 정지
   if (calibCamera) {
     calibCamera.stop();
     calibCamera = null;
   }
+  
+  // 2. HTML 비디오 태그 정지
   const videoEl = document.getElementById('calib-video');
   if (videoEl && videoEl.srcObject) {
     videoEl.srcObject.getTracks().forEach(track => track.stop());
     videoEl.srcObject = null;
   }
-}
 
+  if (window.globalCameraStreams) {
+    window.globalCameraStreams.forEach(stream => {
+      stream.getTracks().forEach(track => {
+        track.stop();
+        console.log(" 숨어있던 MediaPipe 웹캠 끄기 ");
+      });
+    });
+    window.globalCameraStreams = []; 
+  }
+
+  isTracking = false; 
+}
 export function openCalibration() {
   const overlay = document.getElementById('calib-overlay');
   overlay.style.display = 'flex';
