@@ -11,6 +11,7 @@ let scene, camera, renderer, clock;
 window.targetPoseEntries = []; 
 let breathTime = 0;
 const LERP_SPEED = 4.0;
+const MAX_PIXEL_RATIO = 1.5;
 
 export function init3DScene() {
   const canvas = document.getElementById('bg-canvas');
@@ -18,7 +19,7 @@ export function init3DScene() {
 
   //  렌더러 세팅
   renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
@@ -46,6 +47,7 @@ export function init3DScene() {
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO));
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
 
@@ -64,8 +66,7 @@ function updateProceduralAnimation(delta) {
   if (!window.currentVRM || !window.targetPoseEntries.length) return;
   
   for (let i = 0; i < window.targetPoseEntries.length; i++) {
-    const [boneName, tgt] = window.targetPoseEntries[i];
-    const bone = window.currentVRM.humanoid.getNormalizedBoneNode(boneName);
+    const { bone, target: tgt } = window.targetPoseEntries[i];
     if (!bone) continue;
     
     bone.rotation.x += (tgt.x - bone.rotation.x) * LERP_SPEED * delta;
@@ -79,10 +80,10 @@ function updateBreathing(delta) {
   if (!window.currentVRM) return;
   breathTime += delta;
   
-  const chest = window.currentVRM.humanoid.getNormalizedBoneNode('chest');
+  const chest = window.breathingBones?.chest;
   if (chest) chest.rotation.x += Math.sin(breathTime * 1.5) * 0.004;
   
-  const spine = window.currentVRM.humanoid.getNormalizedBoneNode('spine');
+  const spine = window.breathingBones?.spine;
   if (spine) spine.rotation.x += Math.sin(breathTime * 1.2 + 0.5) * 0.002;
 }
 
@@ -90,9 +91,12 @@ function updateBreathing(delta) {
 function animate() {
   requestAnimationFrame(animate);
   
-  if (window.isUIDragging) return;
+  if (window.isUIDragging || document.hidden) {
+    clock.getDelta();
+    return;
+  }
   
-  const delta = clock.getDelta();
+  const delta = Math.min(clock.getDelta(), 0.05);
   
   updateCharacter(delta); 
   
@@ -109,6 +113,12 @@ export function setupPipRenderer(pw) {
   const container = pw.document.getElementById('pip-3d');
   if (!container) return;
 
+  if (pipRenderer) {
+    pipRenderer.dispose();
+    pipRenderer = null;
+  }
+  container.replaceChildren();
+
   const c = pw.document.createElement('canvas');
   container.appendChild(c);
 
@@ -121,7 +131,14 @@ export function setupPipRenderer(pw) {
     if (w && h) pipRenderer.setSize(w, h);
   };
   resize();
-  new ResizeObserver(resize).observe(container);
+  const resizeObserver = new ResizeObserver(resize);
+  resizeObserver.observe(container);
+
+  pw.addEventListener('pagehide', () => {
+    resizeObserver.disconnect();
+    pipRenderer?.dispose();
+    pipRenderer = null;
+  }, { once: true });
 
   const pipCam = camera.clone();
   let lastPipFrame = 0;

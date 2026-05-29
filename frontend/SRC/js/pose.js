@@ -3,7 +3,7 @@
 // MediaPipe를 이용한 자세 인식 및 좌표 웹소켓 전송 로직 
 // ============================================================================
 
-import { sendPoseData, sendCommand } from './network.js';
+import { isWebSocketOpen, sendPoseData, sendCommand } from './network.js';
 
 // 상태 변수 세팅 
 let currentLandmarks = null;    // 현재 프레임의 랜드마크 좌표
@@ -22,7 +22,7 @@ const pose = new Pose({
 });
 
 pose.setOptions({
-  modelComplexity: 1, 
+  modelComplexity: 0,
   smoothLandmarks: true, 
   minDetectionConfidence: 0.5, 
   minTrackingConfidence: 0.5
@@ -64,38 +64,38 @@ pose.onResults((results) => {
 // ============================================================================
 //자세 트래킹 및 ArrayBuffer 바이너리 전송 
 
+const POSTURE_SEND_INTERVAL_MS = 250;
+const ENCODE_WIDTH = 480;
+const ENCODE_HEIGHT = 360;
+const JPEG_QUALITY = 0.6;
 const encodeCanvas = document.createElement('canvas');
-encodeCanvas.width = 1080; 
-encodeCanvas.height = 720;
+encodeCanvas.width = ENCODE_WIDTH;
+encodeCanvas.height = ENCODE_HEIGHT;
 const encodeCtx = encodeCanvas.getContext('2d', { willReadFrequently: true });
+let isEncodingFrame = false;
 
 function startPostureTracking() {
   if (trackingTimer) clearInterval(trackingTimer);
 
   trackingTimer = setInterval(() => {
-    if (!currentLandmarks) return;
+    if (!currentLandmarks || !isWebSocketOpen() || isEncodingFrame) return;
 
-    //좌표 데이터 추출
-    const targetPoints = [0, 11, 12];
-    const payloadPoints = {};
-
-    targetPoints.forEach(idx => {
-      const curr = currentLandmarks[idx];
-      if (curr) {
-        payloadPoints[idx] = { x: curr.x, y: curr.y };
-      }
-    });
     const videoEl = document.getElementById('calib-video');
     if (videoEl && videoEl.videoWidth > 0) {
+      isEncodingFrame = true;
       encodeCtx.drawImage(videoEl, 0, 0, encodeCanvas.width, encodeCanvas.height);
       
       encodeCanvas.toBlob(async (blob) => {
-        if (!blob) return;
-        const imageBuffer = await blob.arrayBuffer();
-        sendPoseData(imageBuffer); 
-      }, 'image/jpeg', 0.8); // 화질 80% (hd)JPEG
+        try {
+          if (!blob) return;
+          const imageBuffer = await blob.arrayBuffer();
+          sendPoseData(imageBuffer);
+        } finally {
+          isEncodingFrame = false;
+        }
+      }, 'image/jpeg', JPEG_QUALITY);
     }
-  }, 200); 
+  }, POSTURE_SEND_INTERVAL_MS);
 }
 
 // ============================================================================
@@ -126,7 +126,7 @@ export function openCalibration() {
   if (!calibCamera) {
     calibCamera = new Camera(videoEl, {
       onFrame: async () => { await pose.send({ image: videoEl }); },
-      width: 640, height: 480
+      width: 480, height: 360
     });
   }
   calibCamera.start();
@@ -173,7 +173,13 @@ export function startCalibration() {
   let count = 10;
   baseBtn.innerText = `측정 중... (${count}초 남음)`;
 
-  sendCommand("start_calibration");
+  if (!sendCommand("start_calibration")) {
+    alert("서버 연결이 아직 준비되지 않았습니다. 잠시 후 다시 시도해주세요.");
+    baseBtn.disabled = false;
+    toggleBtn.disabled = false;
+    closeBtn.disabled = false;
+    return;
+  }
   
   const wasTracking = isTracking;
   if (!wasTracking) {

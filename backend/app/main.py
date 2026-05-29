@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket
-from app.websocket.handlers import handle_posture_connection, _ai_pipeline
+from app.websocket.handlers import get_ai_pipeline, handle_posture_connection
 from app.websocket.manager import manager
 from app.models.db import init_db
 from app.api.report import router as report_router
@@ -16,8 +16,8 @@ async def lifespan(app: FastAPI):
     print("[lifespan] AI 파이프라인 워밍업 중... (MPS 첫 실행 10~20초 소요)")
     dummy = np.zeros((480, 640, 3), dtype=np.uint8)
     loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, _ai_pipeline.process_frame, dummy)
-    print("[lifespan] AI 파이프라인 준비 완료 ✅")
+    await loop.run_in_executor(None, get_ai_pipeline().process_frame, dummy)
+    print("[lifespan] AI 파이프라인 준비 완료")
 
     yield
 

@@ -19,6 +19,7 @@ class PoseResult(TypedDict):
     shoulder_depth: float
     detected: bool          # 포즈감지 성공여부
     confidence: float       # 포즈감지 신뢰도
+    processing_time_ms: float
 
 class PosturePipeline(Protocol):
     def process_frame(self, frame:np.ndarray) -> PoseResult:
@@ -63,6 +64,7 @@ class MockPosturePipeline:
         실제 처리 시간을 흉내내기 위해 짧은 sleep도 포함.
         """
 
+        start = time.perf_counter()
         # 실제 AI 처리에 30~50ms 걸린다고 가정
         time.sleep(random.uniform(0.03,0.05))
         
@@ -82,7 +84,8 @@ class MockPosturePipeline:
             nose_depth = 0.5 + delta / 2,
             shoulder_depth = 0.5 - delta / 2,
             detected = True,
-            confidence = random.uniform(0.85, 0.99)
+            confidence = random.uniform(0.85, 0.99),
+            processing_time_ms = round((time.perf_counter() - start) * 1000, 2)
         )
     def _senario_base(self, frame_idx: int) -> float:
         """

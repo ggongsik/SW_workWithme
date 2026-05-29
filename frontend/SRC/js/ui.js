@@ -125,6 +125,7 @@ export async function checkLogin() {
     localStorage.setItem('lofi_user_id', 'admin'); 
     reloadPlaylistForUser(); 
     closeLoginOverlay();
+    initWebSocket().catch((error) => console.warn("WebSocket 연결 실패:", error));
     return;
   }
 

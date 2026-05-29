@@ -72,4 +72,4 @@ if __name__ == "__main__":
     test_hysteresis_prevents_flapping()
     test_detect_returns_none_in_wrong_mode()
     test_update_ema_formula()
-    print("✅ 모든 테스트 통과")
+    print("All tests passed")

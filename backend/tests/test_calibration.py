@@ -78,4 +78,4 @@ if __name__ == "__main__":
     test_finalize_computes_correct_stats()
     test_finalize_fails_with_few_samples()
     test_add_sample_in_wrong_mode_raises()
-    print("✅ 모든 테스트 통과")
+    print("All tests passed")

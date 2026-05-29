@@ -67,7 +67,7 @@ async def main():
                     data = json.loads(raw)
                     t = data.get("type")
                     if t == "calibration_complete":
-                        print(f"  ✅ 캘리브레이션 완료 baseline={data['baseline_delta_depth']}")
+                        print(f"  calibration complete baseline={data['baseline_delta_depth']}")
                     elif t == "detection_result" and data["is_turtle"]:
                         # 첫 거북목만 표시
                         pass

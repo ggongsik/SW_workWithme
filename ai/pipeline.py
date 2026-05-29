@@ -46,7 +46,7 @@ class PosturePipeline:
         # ── MediaPipe ──────────────────────────────
         self._mp_pose = mp.solutions.pose
         self._pose = self._mp_pose.Pose(
-            static_image_mode=True,
+            static_image_mode=False,
             model_complexity=1,
             min_detection_confidence=0.3,
             min_tracking_confidence=0.3
@@ -95,13 +95,31 @@ class PosturePipeline:
         lm = results.pose_landmarks.landmark
         P  = self._mp_pose.PoseLandmark
 
+        confidence = float(min(
+            lm[P.NOSE].visibility,
+            lm[P.LEFT_SHOULDER].visibility,
+            lm[P.RIGHT_SHOULDER].visibility,
+        ))
+        if confidence < 0.3:
+            elapsed = (time.perf_counter() - start) * 1000
+            return PoseResult(
+                delta_depth=0.0,
+                nose_depth=0.0,
+                shoulder_depth=0.0,
+                mp_delta_z=0.0,
+                detected=False,
+                confidence=round(confidence, 4),
+                processing_time_ms=round(elapsed, 2)
+            )
+
         # ── Depth Anything ─────────────────────────
-        depth_map = self._depth_model.infer_image(frame)
+        with torch.inference_mode():
+            depth_map = self._depth_model.infer_image(frame)
 
         # 5x5 패치 평균으로 깊이값 읽기
         def get_depth(lmk) -> float:
-            x  = int(lmk.x * w)
-            y  = int(lmk.y * h)
+            x = min(w - 1, max(0, int(lmk.x * w)))
+            y = min(h - 1, max(0, int(lmk.y * h)))
             x1, x2 = max(0, x-2), min(w, x+3)
             y1, y2 = max(0, y-2), min(h, y+3)
             return float(np.mean(depth_map[y1:y2, x1:x2]))
@@ -115,9 +133,6 @@ class PosturePipeline:
         # MediaPipe Z값 (비교용)
         mp_sh_z    = (lm[P.LEFT_SHOULDER].z + lm[P.RIGHT_SHOULDER].z) / 2
         mp_delta_z = lm[P.NOSE].z - mp_sh_z
-
-        # 신뢰도 (코 랜드마크 visibility 사용)
-        confidence = float(lm[P.NOSE].visibility)
 
         elapsed = (time.perf_counter() - start) * 1000
 

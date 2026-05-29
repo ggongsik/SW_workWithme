@@ -16,16 +16,27 @@ const WARN_THRESHOLD_MIN = 1; // 1분
 const ALERT_THRESHOLD_MIN = 5; // 5분
 
 export async function initWebSocket() {
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+    return ws;
+  }
+
   const token = await getUserToken();
-  let wsURL = 'ws://localhost:8000/ws/posture';
+  const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  const host = window.POSTURE_WS_HOST || `${window.location.hostname || 'localhost'}:8000`;
+  let wsURL = `${protocol}://${host}/ws/posture`;
   if (token) {
-      wsURL += `?token=${token}`;
+      wsURL += `?token=${encodeURIComponent(token)}`;
   }
   ws = new WebSocket(wsURL);
   ws.binaryType = 'arraybuffer'; 
   
   ws.onopen = () => console.log('WebSocket Connected');
   ws.onerror = (error) => console.error('WebSocket Error:', error);
+  ws.onclose = () => {
+    ws = null;
+    turtleStartTime = null;
+    currentPoseState = 'idle';
+  };
   
   ws.onmessage = (event) => {
     try {
@@ -79,15 +90,22 @@ function changeUIState(newState) {
   console.log(` 거북목 지속 상태 변경: ${newState}`);
   
   // 3D 캐릭터 포즈 및 화면 테두리 네온 효과 변경
-  if (window.setPose) window.setPose(newState); // index.html의 캐릭터 포즈 함수
+  if (window.change3DPose) window.change3DPose(newState);
+  else if (window.setPose) window.setPose(newState); // legacy hook
   if (window.setUIGlow) window.setUIGlow(newState); // ui.js의 네온 글로우 함수
 }
 
 // 
+export function isWebSocketOpen() {
+  return !!(ws && ws.readyState === WebSocket.OPEN);
+}
+
 export function sendPoseData(buffer) {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(buffer); 
+    return true;
   }
+  return false;
 }
 
 //  백엔드에 텍스트 제어 메시지를 보내는 함수 추가
@@ -96,5 +114,7 @@ export function sendCommand(commandType) {
     const msg = JSON.stringify({ type: commandType });
     ws.send(msg);
     console.log(`[웹소켓 명령 전송] ${msg}`);
+    return true;
   }
+  return false;
 }

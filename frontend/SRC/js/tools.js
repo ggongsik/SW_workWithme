@@ -258,6 +258,14 @@ export function deleteCalLabel(key, i) {
 // ============================================================================
 // ── 4. 모듈 초기화 실행 ──
 // ============================================================================
-renderNotes();
-renderTodos();
-renderCal();
+function initTools() {
+  renderNotes();
+  renderTodos();
+  renderCal();
+}
+
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', initTools, { once: true });
+} else {
+  initTools();
+}
