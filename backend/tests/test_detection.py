@@ -2,6 +2,8 @@
 모니터링 로직 단위 테스트.
 """
 
+import math
+
 from app.websocket.manager import SessionState
 from app.services import detection
 
@@ -59,6 +61,13 @@ def test_detect_returns_none_in_wrong_mode():
     assert result is None
 
 
+def test_detect_ignores_nan_depth():
+    state = make_monitoring_state()
+    result = detection.detect(state, math.nan)
+    assert result is None
+    assert state.ema_value == 0.15
+
+
 def test_update_ema_formula():
     """EMA 공식 정확성"""
     # α=0.3, prev=0.10, current=0.20
@@ -71,5 +80,6 @@ if __name__ == "__main__":
     test_ema_smoothing_reduces_spike()
     test_hysteresis_prevents_flapping()
     test_detect_returns_none_in_wrong_mode()
+    test_detect_ignores_nan_depth()
     test_update_ema_formula()
     print("All tests passed")

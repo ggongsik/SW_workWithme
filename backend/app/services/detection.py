@@ -6,6 +6,7 @@
 - 결과는 SessionState에 누적 (Step 9에서 DB로 저장)
 """
 import time
+import math
 
 from typing import Optional
 from dataclasses import dataclass
@@ -42,9 +43,13 @@ def detect(state: SessionState, raw_delta_depth: float) -> Optional[DetectionRes
         return None
     if state.baseline_delta_depth is None or state.baseline_std is None:
         return None
+    if not math.isfinite(raw_delta_depth):
+        return None
 
     baseline = state.baseline_delta_depth
     std = state.baseline_std
+    if not math.isfinite(baseline) or not math.isfinite(std):
+        return None
 
     # 1. EMA 갱신
     prev_ema = state.ema_value if state.ema_value is not None else baseline

@@ -377,6 +377,7 @@
       <div class="setting-tabs">
         <div class="stab on" onclick="setTab('gen',this)">전반</div>
         <div class="stab" onclick="setTab('audio',this)">오디오</div>
+        <div class="stab" onclick="setTab('debug',this)">Debug</div>
       </div>
       <div id="stab-gen">
         <div class="setting-row">
@@ -407,6 +408,32 @@
         <div class="setting-row" style="margin-top:4px;">
           <span class="setting-label">포모도로 SE</span>
           <div class="toggle-pair"><div class="tpill on">켬</div><div class="tpill">끔</div></div>
+        </div>
+      </div>
+      <div id="stab-debug" style="display:none;">
+        <div class="setting-row">
+          <span class="setting-label">Debug mode</span>
+          <label class="debug-switch"><input id="debug-toggle" type="checkbox" onchange="toggleDebugMode(this.checked)"><span></span></label>
+        </div>
+        <div id="debug-panel" hidden>
+          <div class="debug-status-grid">
+            <div><span>Tracking</span><strong id="debug-tracking-status" data-state="warn">idle</strong></div>
+            <div><span>Posture</span><strong id="debug-posture-state" data-state="idle">NORMAL</strong></div>
+            <div><span>Forced</span><strong id="debug-forced-state">OFF</strong></div>
+            <div><span>WebSocket</span><strong id="debug-ws-state">closed</strong></div>
+          </div>
+          <div class="debug-force-row">
+            <button onclick="forceDebugState('idle')">Normal</button>
+            <button onclick="forceDebugState('warn')">Warning</button>
+            <button onclick="forceDebugState('alert')">Alert</button>
+            <button onclick="clearDebugState()">Auto</button>
+          </div>
+          <div id="debug-performance" class="debug-performance"></div>
+          <div class="debug-log-toolbar">
+            <span>WebSocket / posture log</span>
+            <button onclick="clearDebugLogs()">Clear</button>
+          </div>
+          <div id="debug-log-list" class="debug-log-list"></div>
         </div>
       </div>
     </div>

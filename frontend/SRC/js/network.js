@@ -4,6 +4,13 @@
 // ============================================================================
 
 import { getUserToken } from './firebase.js';
+import {
+  getForcedDebugState,
+  noteDebugPoseResult,
+  noteDebugWebSocket,
+  setDebugPostureState,
+  setDebugWebSocketState,
+} from './debug.js';
 let ws = null; 
 
 // 거북목 지속 시간 추적 변수
@@ -29,13 +36,23 @@ export async function initWebSocket() {
   }
   ws = new WebSocket(wsURL);
   ws.binaryType = 'arraybuffer'; 
+  setDebugWebSocketState('connecting');
+  noteDebugWebSocket('ws-out', 'connect', { url: wsURL.replace(/token=[^&]+/, 'token=***') });
   
-  ws.onopen = () => console.log('WebSocket Connected');
-  ws.onerror = (error) => console.error('WebSocket Error:', error);
+  ws.onopen = () => {
+    console.log('WebSocket Connected');
+    setDebugWebSocketState('open');
+  };
+  ws.onerror = (error) => {
+    console.error('WebSocket Error:', error);
+    setDebugWebSocketState('error');
+    noteDebugWebSocket('ws-error', 'socket error', { type: error.type });
+  };
   ws.onclose = () => {
     ws = null;
     turtleStartTime = null;
     currentPoseState = 'idle';
+    setDebugWebSocketState('closed');
   };
   
   ws.onmessage = (event) => {
@@ -46,6 +63,7 @@ export async function initWebSocket() {
       }
       
       const data = JSON.parse(dataStr);
+      noteDebugPoseResult(data);
       
       // 백엔드에서 보낸 DetectionResultMsg 처리
       if (data && data.hasOwnProperty('is_turtle')) {
@@ -84,15 +102,19 @@ export async function initWebSocket() {
 
 // 중복 렌더링을 막기 위한 상태 변경 헬퍼 함수
 function changeUIState(newState) {
+  const forcedState = getForcedDebugState();
+  const effectiveState = forcedState || newState;
   if (currentPoseState === newState) return; // 이미 같은 상태면 무시
   
   currentPoseState = newState;
+  setDebugPostureState(newState, { effective_state: effectiveState, forced: !!forcedState });
   console.log(` 거북목 지속 상태 변경: ${newState}`);
   
   // 3D 캐릭터 포즈 및 화면 테두리 네온 효과 변경
-  if (window.change3DPose) window.change3DPose(newState);
-  else if (window.setPose) window.setPose(newState); // legacy hook
-  if (window.setUIGlow) window.setUIGlow(newState); // ui.js의 네온 글로우 함수
+  if (forcedState) return;
+  if (window.change3DPose) window.change3DPose(effectiveState);
+  else if (window.setPose) window.setPose(effectiveState); // legacy hook
+  if (window.setUIGlow) window.setUIGlow(effectiveState); // ui.js의 네온 글로우 함수
 }
 
 // 
@@ -105,6 +127,7 @@ export function sendPoseData(buffer) {
     ws.send(buffer); 
     return true;
   }
+  noteDebugWebSocket('ws-drop', 'frame skipped: websocket not open');
   return false;
 }
 
@@ -114,7 +137,9 @@ export function sendCommand(commandType) {
     const msg = JSON.stringify({ type: commandType });
     ws.send(msg);
     console.log(`[웹소켓 명령 전송] ${msg}`);
+    noteDebugWebSocket('ws-out', commandType);
     return true;
   }
+  noteDebugWebSocket('ws-drop', `command skipped: ${commandType}`);
   return false;
 }

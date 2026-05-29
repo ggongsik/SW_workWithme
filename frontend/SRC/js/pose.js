@@ -4,6 +4,11 @@
 // ============================================================================
 
 import { isWebSocketOpen, sendPoseData, sendCommand } from './network.js';
+import {
+  noteDebugFrameSent,
+  noteDebugTrackingHeartbeat,
+  setDebugTrackingStatus,
+} from './debug.js';
 
 // 상태 변수 세팅 
 let currentLandmarks = null;    // 현재 프레임의 랜드마크 좌표
@@ -30,6 +35,7 @@ pose.setOptions({
 
 pose.onResults((results) => {
   currentLandmarks = results.poseLandmarks || null;
+  noteDebugTrackingHeartbeat(results.poseLandmarks ? 'landmarks' : 'no_landmarks');
   
   const videoEl = document.getElementById('calib-video');
   const canvasEl = document.getElementById('calib-canvas');
@@ -76,9 +82,21 @@ let isEncodingFrame = false;
 
 function startPostureTracking() {
   if (trackingTimer) clearInterval(trackingTimer);
+  setDebugTrackingStatus('running', { interval_ms: POSTURE_SEND_INTERVAL_MS });
 
   trackingTimer = setInterval(() => {
-    if (!currentLandmarks || !isWebSocketOpen() || isEncodingFrame) return;
+    if (!currentLandmarks) {
+      noteDebugTrackingHeartbeat('waiting_landmarks');
+      return;
+    }
+    if (!isWebSocketOpen()) {
+      noteDebugTrackingHeartbeat('waiting_websocket');
+      return;
+    }
+    if (isEncodingFrame) {
+      noteDebugTrackingHeartbeat('encoding_busy');
+      return;
+    }
 
     const videoEl = document.getElementById('calib-video');
     if (videoEl && videoEl.videoWidth > 0) {
@@ -89,11 +107,13 @@ function startPostureTracking() {
         try {
           if (!blob) return;
           const imageBuffer = await blob.arrayBuffer();
-          sendPoseData(imageBuffer);
+          if (sendPoseData(imageBuffer)) noteDebugFrameSent(imageBuffer.byteLength);
         } finally {
           isEncodingFrame = false;
         }
       }, 'image/jpeg', JPEG_QUALITY);
+    } else {
+      noteDebugTrackingHeartbeat('waiting_video');
     }
   }, POSTURE_SEND_INTERVAL_MS);
 }
@@ -114,6 +134,7 @@ function stopCamera() {
     videoEl.srcObject.getTracks().forEach(track => track.stop());
     videoEl.srcObject = null;
   }
+  setDebugTrackingStatus('camera_stopped');
 }
 
 export function openCalibration() {
@@ -125,11 +146,21 @@ export function openCalibration() {
   
   if (!calibCamera) {
     calibCamera = new Camera(videoEl, {
-      onFrame: async () => { await pose.send({ image: videoEl }); },
+      onFrame: async () => {
+        try {
+          await pose.send({ image: videoEl });
+        } catch (error) {
+          setDebugTrackingStatus('error', { message: error.message });
+          throw error;
+        }
+      },
       width: 480, height: 360
     });
   }
-  calibCamera.start();
+  calibCamera.start().catch((error) => {
+    setDebugTrackingStatus('error', { message: error.message });
+    console.error('Camera start failed:', error);
+  });
 }
 
 export function closeCalibration() {
@@ -150,6 +181,7 @@ export function closeCalibration() {
     if (trackingTimer) {
       clearInterval(trackingTimer);
       trackingTimer = null;
+      setDebugTrackingStatus('stopped');
     }
 
     console.log("웹캠 전원이 완전히 차단되었습니다.");
@@ -206,6 +238,7 @@ export function startCalibration() {
          if (trackingTimer) {
            clearInterval(trackingTimer);
            trackingTimer = null;
+           setDebugTrackingStatus('calibration_done');
          }
       }
       
@@ -245,6 +278,7 @@ export function togglePostureCorrection() {
     if (trackingTimer) {
       clearInterval(trackingTimer);
       trackingTimer = null;
+      setDebugTrackingStatus('stopped');
     }
     
     if (window.setUIGlow) window.setUIGlow('idle');

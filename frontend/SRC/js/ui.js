@@ -270,6 +270,8 @@ export function setTab(tab, el) {
   el.classList.add('on');
   document.getElementById('stab-gen').style.display = tab === 'gen' ? 'block' : 'none';
   document.getElementById('stab-audio').style.display = tab === 'audio' ? 'block' : 'none';
+  const debugTab = document.getElementById('stab-debug');
+  if (debugTab) debugTab.style.display = tab === 'debug' ? 'block' : 'none';
 }
 
 

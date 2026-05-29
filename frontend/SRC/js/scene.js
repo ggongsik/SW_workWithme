@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { loadBackground } from './background.js';
 import { loadCharacter, updateCharacter, change3DPose, switchCharacter } from './character.js';
+import { noteDebugRenderFrame } from './debug.js';
 
 let scene, camera, renderer, clock;
 
@@ -106,6 +107,7 @@ function animate() {
   }
   
   renderer.render(scene, camera);
+  noteDebugRenderFrame();
 }
 
 let pipRenderer = null;

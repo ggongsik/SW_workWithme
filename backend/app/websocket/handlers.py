@@ -1,6 +1,7 @@
 import asyncio
 import io
 import json
+import math
 import os
 import sys
 import time
@@ -188,19 +189,24 @@ async def _handle_frame(state: SessionState, frame_bytes: bytes) -> None:
     async with _pipeline_lock:
         result = await loop.run_in_executor(None, pipeline.process_frame, frame)
 
+    delta_depth = result.get("delta_depth")
+    delta_for_log = delta_depth if isinstance(delta_depth, (int, float)) and math.isfinite(delta_depth) else "invalid"
     print(
         f"[AI] processing_time={result.get('processing_time_ms', 0):.0f}ms, "
-        f"detected={result['detected']}, delta={result.get('delta_depth', 0):.4f}, "
+        f"detected={result['detected']}, delta={delta_for_log}, "
         f"mode={state.mode}"
     )
 
     if not result["detected"]:
         return
+    if not isinstance(delta_depth, (int, float)) or not math.isfinite(delta_depth):
+        await send_error(state.websocket, "INVALID_DEPTH", "AI pipeline returned a non-finite depth value")
+        return
 
     if state.mode == "calibrating":
-        await _process_calibration_frame(state, result["delta_depth"])
+        await _process_calibration_frame(state, delta_depth)
     elif state.mode == "monitoring":
-        await _process_monitoring_frame(state, result["delta_depth"])
+        await _process_monitoring_frame(state, delta_depth)
 
 
 async def _process_calibration_frame(state: SessionState, delta_depth: float) -> None:

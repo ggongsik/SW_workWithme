@@ -1,4 +1,5 @@
 import time
+import math
 import numpy as np
 
 from dataclasses import dataclass
@@ -35,6 +36,8 @@ def add_sample(state: SessionState, delta_depth: float) -> None:
     """
     if (state.mode != "calibrating") or (state.calibration_started_at is None):
         raise ValueError("캘리브레이션 상태가 아닙니다")
+    if not math.isfinite(delta_depth):
+        return
 
     state.calibration_samples.append(delta_depth)
 
@@ -52,6 +55,9 @@ def finalize_calibration(state: SessionState) -> Optional[CalibrationResult]:
         return None
 
     arr = np.array(samples, dtype=np.float64)
+    arr = arr[np.isfinite(arr)]
+    if (len(arr) < MIN_SAMPLES_REQUIRED):
+        return None
     baseline = float(np.mean(arr))
     std = float(np.std(arr, ddof=1))  # 표본 표준편차
     threshold = baseline + THRESHOLD_SIGMA * std
@@ -69,7 +75,7 @@ def finalize_calibration(state: SessionState) -> Optional[CalibrationResult]:
         baseline = baseline,
         std = std,
         threshold = threshold,
-        sample_count = len(samples),
+        sample_count = len(arr),
         duration_sec = duration
     )
 

@@ -3,6 +3,8 @@
 WebSocket이나 AI 파이프라인 없이 순수 로직만 검증.
 """
 
+import math
+
 from app.websocket.manager import SessionState
 from app.services import calibration
 
@@ -62,6 +64,21 @@ def test_finalize_fails_with_few_samples():
     assert result is None  # 실패
 
 
+def test_nan_samples_are_ignored():
+    state = make_test_state()
+    calibration.start_calibration(state)
+
+    calibration.add_sample(state, math.nan)
+    assert state.calibration_samples == []
+
+    for _ in range(calibration.MIN_SAMPLES_REQUIRED):
+        calibration.add_sample(state, 0.15)
+
+    result = calibration.finalize_calibration(state)
+    assert result is not None
+    assert result.sample_count == calibration.MIN_SAMPLES_REQUIRED
+
+
 def test_add_sample_in_wrong_mode_raises():
     state = make_test_state()
     # mode == 'idle'
@@ -77,5 +94,6 @@ if __name__ == "__main__":
     test_add_sample_accumulates()
     test_finalize_computes_correct_stats()
     test_finalize_fails_with_few_samples()
+    test_nan_samples_are_ignored()
     test_add_sample_in_wrong_mode_raises()
     print("All tests passed")
