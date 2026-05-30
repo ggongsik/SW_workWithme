@@ -3,7 +3,7 @@
 // MediaPipe를 이용한 자세 인식 및 좌표 웹소켓 전송 로직
 // ============================================================================
 
-import { isWebSocketOpen, sendPoseData, sendCommand, isCalibrated, setCalibrated } from './network.js';
+import { initWebSocket, isWebSocketOpen, sendPoseData, sendCommand, isCalibrated, setCalibrated } from './network.js';
 import {
   noteDebugFrameSent,
   noteDebugTrackingHeartbeat,
@@ -55,7 +55,7 @@ pose.onResults((results) => {
     badge.innerText = '랜드마크 감지됨';
     badge.style.background = 'rgba(0, 180, 255, 0.5)';
 
-    drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, { color: '#00bfff', lineWidth: 3 });
+    drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, { color: '#39c5bb', lineWidth: 3 });
     drawLandmarks(canvasCtx, results.poseLandmarks, { color: '#c8e6ff', lineWidth: 1, radius: 2 });
   } else {
     badge.innerText = '인식 불가! (자세를 맞춰주세요)';
@@ -124,6 +124,66 @@ function startPostureTracking() {
 
 export let isTracking = false;
 
+async function ensureWebSocketReady() {
+  if (isWebSocketOpen()) return true;
+
+  try {
+    await initWebSocket();
+    return isWebSocketOpen();
+  } catch (error) {
+    console.error('WebSocket 준비 실패:', error);
+    setDebugTrackingStatus('error', { message: error.message });
+    return false;
+  }
+}
+
+function waitForCalibrationComplete(timeoutMs = 30000) {
+  if (isCalibrated) return Promise.resolve(null);
+
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      cleanup();
+      reject(new Error('서버의 캘리브레이션 완료 응답을 받지 못했습니다. 다시 시도해주세요.'));
+    }, timeoutMs);
+
+    function cleanup() {
+      window.clearTimeout(timeoutId);
+      window.removeEventListener('posture:calibration-complete', onComplete);
+      window.removeEventListener('posture:server-error', onError);
+    }
+
+    function onComplete(event) {
+      cleanup();
+      resolve(event.detail || null);
+    }
+
+    function onError(event) {
+      const detail = event.detail || {};
+      const calibrationErrors = new Set([
+        'INSUFFICIENT_SAMPLES',
+        'NOT_CALIBRATING',
+        'INVALID_FRAME',
+        'NOT CALIBRATED',
+      ]);
+
+      if (!calibrationErrors.has(detail.code)) return;
+      cleanup();
+      reject(new Error(detail.message || detail.code || '캘리브레이션에 실패했습니다.'));
+    }
+
+    window.addEventListener('posture:calibration-complete', onComplete);
+    window.addEventListener('posture:server-error', onError);
+  });
+}
+
+function stopCalibrationFrameSender(status = 'calibration_done') {
+  if (trackingTimer) {
+    clearInterval(trackingTimer);
+    trackingTimer = null;
+    setDebugTrackingStatus(status);
+  }
+}
+
 export function stopCamera() {
   // 1. MediaPipe 겉핥기 정지
   if (calibCamera) {
@@ -156,6 +216,9 @@ export function openCalibration() {
   const overlay = document.getElementById('calib-overlay');
   overlay.style.display = 'flex';
   setTimeout(() => overlay.style.opacity = '1', 10);
+  initWebSocket().catch((error) => {
+    console.warn('캘리브레이션 WebSocket 준비 대기:', error);
+  });
 
   const videoEl = document.getElementById('calib-video');
 
@@ -203,7 +266,7 @@ export function closeCalibration() {
   }
 }
 
-export function startCalibration() {
+export async function startCalibration() {
   if (!currentLandmarks) {
     alert("아직 사람을 정확히 인식하지 못했습니다. 카메라 중앙에 서주세요.");
     return;
@@ -212,10 +275,23 @@ export function startCalibration() {
   const baseBtn = document.getElementById('calib-base-btn');
   const toggleBtn = document.getElementById('calib-toggle-btn');
   const closeBtn = document.getElementById('calib-close-btn');
+  setCalibrated(false);
+  baselineLandmarks = null;
 
   baseBtn.disabled = true;
   toggleBtn.disabled = true;
   closeBtn.disabled = true;
+
+  baseBtn.innerText = "서버 연결 확인 중...";
+
+  if (!await ensureWebSocketReady()) {
+    alert("서버 연결이 아직 준비되지 않았습니다. Firebase 로그인 상태와 백엔드 실행 여부를 확인한 뒤 다시 시도해주세요.");
+    baseBtn.disabled = false;
+    toggleBtn.disabled = false;
+    closeBtn.disabled = false;
+    baseBtn.innerText = "기본 자세 설정";
+    return;
+  }
 
   let count = 10;
   baseBtn.innerText = `측정 중... (${count}초 남음)`;
@@ -225,6 +301,7 @@ export function startCalibration() {
     baseBtn.disabled = false;
     toggleBtn.disabled = false;
     closeBtn.disabled = false;
+    baseBtn.innerText = "기본 자세 설정";
     return;
   }
 
@@ -240,32 +317,58 @@ export function startCalibration() {
     } else {
       clearInterval(calibTimer);
 
-      baselineLandmarks = JSON.parse(JSON.stringify(currentLandmarks));
-
-      sendCommand("stop_calibration");
-
-      baseBtn.innerText = "측정 완료! ✓";
-      baseBtn.style.background = "rgba(0, 255, 127, 0.2)";
-      baseBtn.style.borderColor = "#00ff7f";
-      baseBtn.style.color = "#00ff7f";
-
-      if (!wasTracking && !isTracking) {
-         if (trackingTimer) {
-           clearInterval(trackingTimer);
-           trackingTimer = null;
-           setDebugTrackingStatus('calibration_done');
-         }
-      }
-
-      setTimeout(() => {
-         baseBtn.disabled = false;
-         toggleBtn.disabled = false;
-         closeBtn.disabled = false;
-         baseBtn.innerText = "기본 자세 재설정";
-         baseBtn.style = "";
-      }, 2000);
+      finishCalibration({ baseBtn, toggleBtn, closeBtn, wasTracking });
     }
   }, 1000);
+}
+
+async function finishCalibration({ baseBtn, toggleBtn, closeBtn, wasTracking }) {
+  baselineLandmarks = currentLandmarks ? JSON.parse(JSON.stringify(currentLandmarks)) : null;
+  baseBtn.innerText = "서버 기준값 확인 중...";
+
+  const completion = waitForCalibrationComplete();
+  if (!sendCommand("stop_calibration")) {
+    setCalibrated(false);
+    stopCalibrationFrameSender('error');
+    alert("서버 연결이 끊겨 캘리브레이션을 완료하지 못했습니다. 다시 시도해주세요.");
+    baseBtn.disabled = false;
+    toggleBtn.disabled = false;
+    closeBtn.disabled = false;
+    baseBtn.innerText = "기본 자세 설정";
+    return;
+  }
+
+  try {
+    await completion;
+    baseBtn.innerText = "측정 완료! ✓";
+    baseBtn.style.background = "rgba(57, 197, 187, 0.18)";
+    baseBtn.style.borderColor = "#39c5bb";
+    baseBtn.style.color = "#9af3e6";
+
+    if (!wasTracking && !isTracking) {
+      stopCalibrationFrameSender('calibration_done');
+    }
+
+    setTimeout(() => {
+      baseBtn.disabled = false;
+      toggleBtn.disabled = false;
+      closeBtn.disabled = false;
+      baseBtn.innerText = "기본 자세 재설정";
+      baseBtn.style = "";
+    }, 1200);
+  } catch (error) {
+    setCalibrated(false);
+    baselineLandmarks = null;
+    if (!wasTracking && !isTracking) {
+      stopCalibrationFrameSender('error');
+    }
+    alert(`캘리브레이션 실패: ${error.message}`);
+    baseBtn.disabled = false;
+    toggleBtn.disabled = false;
+    closeBtn.disabled = false;
+    baseBtn.innerText = "기본 자세 다시 설정";
+    baseBtn.style = "";
+  }
 }
 
 export function togglePostureCorrection() {

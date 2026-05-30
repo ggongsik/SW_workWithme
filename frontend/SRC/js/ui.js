@@ -4,8 +4,8 @@
 // ============================================================================
 
 import { reloadPlaylistForUser } from './player.js';
-import { registerUser, loginUser, getUserToken} from './firebase.js';
-import { initWebSocket, sendCommand } from './network.js';
+import { registerUser, loginUser } from './firebase.js';
+import { getBackendApiBase, getBackendAuthToken, initWebSocket, sendCommand } from './network.js';
 import { openCalibration, closeCalibration, startCalibration, togglePostureCorrection, stopCamera } from './pose.js';
 let timeFmt = 12; // 시간 형식 (12시/24시)
 
@@ -125,6 +125,9 @@ export async function checkLogin() {
     localStorage.setItem('lofi_user_id', 'admin');
     reloadPlaylistForUser();
     closeLoginOverlay();
+    initWebSocket().catch((error) => {
+      console.warn('로컬 admin WebSocket 연결 대기:', error);
+    });
     return;
   }
 
@@ -137,7 +140,9 @@ export async function checkLogin() {
     console.log("로그인 성공!", userCredential.user.email);
     closeLoginOverlay();
 
-    await initWebSocket();
+    initWebSocket().catch((error) => {
+      console.warn('로그인 후 WebSocket 연결 대기:', error);
+    });
 
   } catch (error) {
     console.error("로그인 에러:", error);
@@ -181,10 +186,13 @@ export function logout() {
 
 export async function fetchAndShowReport() {
     try {
-        const token = await getUserToken();
+        const token = await getBackendAuthToken();
+        if (!token) {
+            throw new Error("백엔드 인증 토큰이 없습니다.");
+        }
 
         // ✨ 캡처본에 있는 정확한 API 주소와 헤더 사용
-        const response = await fetch(`http://localhost:8000/api/users/me/report`, {
+        const response = await fetch(`${getBackendApiBase()}/api/users/me/report`, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${token}`
@@ -224,6 +232,10 @@ export function showDailyReport(data) {
     const maxStreakMin = Math.round(today.longest_streak_sec / 60);
     const turtleRatioPct = (today.turtle_ratio * 100).toFixed(1);
 
+    const maxRatio = Math.max(0.01, ...weekly.map(day => (
+        Number.isFinite(day.turtle_ratio) ? day.turtle_ratio : 0
+    )));
+
     // HTML에 해당 ID가 있다고 가정하고 값 넣기
     const totalEl = document.getElementById('report-total-time');
     const maxEl = document.getElementById('report-max-time');
@@ -239,42 +251,65 @@ export function showDailyReport(data) {
     if (chartContainer) {
         chartContainer.innerHTML = '';
 
-        // 막대그래프 렌더링 (가장 비율이 높은 날을 100% 높이로 잡거나, 절대 퍼센트로 잡음)
+        // 그래프 배경 눈금선
+        for (let i = 1; i <= 4; i++) {
+            const gridLine = document.createElement('div');
+            gridLine.style.position = 'absolute';
+            gridLine.style.bottom = `${i * 25}%`;
+            gridLine.style.left = '0';
+            gridLine.style.right = '0';
+            gridLine.style.borderBottom = '1px dashed rgba(255, 229, 205, 0.18)';
+            gridLine.style.zIndex = '0';
+            chartContainer.appendChild(gridLine);
+        }
+
         weekly.forEach(dayData => {
-            // date ("2026-05-22") 에서 "05-22"만 추출
-            const dateStr = dayData.date.slice(5);
+            const turtleRatio = Number.isFinite(dayData.turtle_ratio) ? dayData.turtle_ratio : 0;
+            const monitoringDurationSec = Number.isFinite(dayData.monitoring_duration_sec) ? dayData.monitoring_duration_sec : 0;
+            const relativeHeightPct = (turtleRatio / maxRatio) * 100;
+            const targetHeight = Math.max(15, (relativeHeightPct / 100) * 250);
+            const dateStr = typeof dayData.date === 'string' ? dayData.date.slice(5) : '-';
+            const heightPct = turtleRatio * 100;
+            const durationMin = Math.round((turtleRatio * monitoringDurationSec) / 60);
 
-            // 비율(%) 계산 및 해당 날짜의 총 무너진 시간(분) 계산
-            const heightPct = dayData.turtle_ratio * 100;
-            const durationMin = Math.round((dayData.turtle_ratio * dayData.monitoring_duration_sec) / 60);
 
-            // 막대를 감싸는 컨테이너 (막대 + 날짜 라벨)
             const barWrapper = document.createElement('div');
             barWrapper.style.display = 'flex';
             barWrapper.style.flexDirection = 'column';
             barWrapper.style.alignItems = 'center';
+            barWrapper.style.justifyContent = 'flex-end';
             barWrapper.style.flex = '1';
+            barWrapper.style.zIndex = '1'; // 눈금선보다 앞에 오게 설정
 
-            // 실제 차트 막대
+            // 💡 2. [핵심] 텍스트를 "분"과 "(%)" 두 줄로 표시!
+            const valueLabel = document.createElement('div');
+            valueLabel.className = 'report-chart-value';
+            valueLabel.style.fontSize = '12px';
+            valueLabel.style.fontWeight = 'bold';
+            valueLabel.style.marginBottom = '6px';
+            valueLabel.style.textAlign = 'center';
+            valueLabel.style.lineHeight = '1.3'; // 줄간격
+            // 분(min)을 크게, 퍼센트(%)는 약간 작고 흐리게 표시
+            valueLabel.innerHTML = `${durationMin}분<br><span>(${Math.round(heightPct)}%)</span>`;
+
+            // 창이 커진 만큼 막대기도 30px로 조금 더 뚱뚱하게!
             const bar = document.createElement('div');
-            bar.className = 'chart-bar';
-            bar.style.height = '0%'; // 애니메이션 시작점
-            // 마우스 올렸을 때 툴팁으로 시간과 비율 표시
+            bar.className = 'report-chart-bar';
+            bar.style.height = `${targetHeight}px`;
+            bar.style.minHeight = `${targetHeight}px`;
             bar.title = `${durationMin}분 (${heightPct.toFixed(1)}%)`;
 
-            // 하단 날짜 텍스트
             const label = document.createElement('span');
-            label.style.fontSize = '12px';
-            label.style.color = '#fff';
+            label.style.fontSize = '13px';
+            label.style.color = 'rgba(217, 200, 188, 0.86)';
             label.style.marginTop = '8px';
             label.innerText = dateStr;
 
+            // 조립하기
+            barWrapper.appendChild(valueLabel);
             barWrapper.appendChild(bar);
             barWrapper.appendChild(label);
             chartContainer.appendChild(barWrapper);
-
-            // 스르륵 차오르는 애니메이션
-            setTimeout(() => { bar.style.height = `${heightPct}%`; }, 100);
         });
     }
 
@@ -511,14 +546,14 @@ export function toggleSignupMode() {
     pwConfirm.style.display = "block";
     submitBtn.textContent = "가입하기";
     submitBtn.onclick = handleSignup; // 버튼 누르면 회원가입 함수 실행
-    toggleText.innerHTML = `이미 계정이 있으신가요? <a href="#" onclick="toggleSignupMode()" style="color:#1DB954; text-decoration:none; font-weight:bold;">로그인</a>`;
+    toggleText.innerHTML = `이미 계정이 있으신가요? <a href="#" onclick="toggleSignupMode()" style="color:#39c5bb; text-decoration:none; font-weight:bold;">로그인</a>`;
   } else {
     // 로그인 모드로 변신
     title.textContent = "로그인";
     pwConfirm.style.display = "none";
     submitBtn.textContent = "입장하기";
     submitBtn.onclick = checkLogin; // 버튼 누르면 로그인 함수 실행
-    toggleText.innerHTML = `계정이 없으신가요? <a href="#" onclick="toggleSignupMode()" style="color:#1DB954; text-decoration:none; font-weight:bold;">회원가입</a>`;
+    toggleText.innerHTML = `계정이 없으신가요? <a href="#" onclick="toggleSignupMode()" style="color:#39c5bb; text-decoration:none; font-weight:bold;">회원가입</a>`;
   }
 }
 

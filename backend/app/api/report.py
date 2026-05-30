@@ -7,11 +7,12 @@
 """
 
 from datetime import datetime, timedelta
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, HTTPException, Header, Request
 from sqlalchemy import select
 
 from app.models.db import get_db_session
 from app.models.db_models import DailyStatsRecord
+from app.auth.dev_auth import resolve_local_dev_uid
 from app.auth.firebase_auth import verify_token
 from app.services.user_service import get_or_create_user
 
@@ -19,11 +20,15 @@ from app.services.user_service import get_or_create_user
 router = APIRouter(prefix="/api", tags=["report"])  # tags : docs에 나옴
 
 
-async def _resolve_user_id(authorization: str | None) -> str:
+async def _resolve_user_id(authorization: str | None, request: Request) -> str:
     """`Authorization: Bearer <firebase_token>` 헤더에서 내부 user_id를 얻는다."""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
     token = authorization.split(" ", 1)[1]
+    firebase_uid = resolve_local_dev_uid(token, request.headers.get("origin") or request.headers.get("referer"))
+    if firebase_uid is not None:
+        return await get_or_create_user(firebase_uid)
+
     firebase_uid = verify_token(token)
     if firebase_uid is None:
         raise HTTPException(status_code=401, detail="Invalid token")
@@ -36,9 +41,9 @@ def _ratio(turtle_sec: float, monitoring_sec: float) -> float:
 
 
 @router.get("/users/me/report")
-async def get_my_report(authorization: str | None = Header(default=None)) -> dict:
+async def get_my_report(request: Request, authorization: str | None = Header(default=None)) -> dict:
     """로그인 사용자의 오늘 통계 + 최근 7일 거북목 비율 추이."""
-    user_id = await _resolve_user_id(authorization)
+    user_id = await _resolve_user_id(authorization, request)
 
     # 최근 7일 (오래된 날 → 오늘 순), 로컬 날짜 기준
     days = [(datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(6, -1, -1)]

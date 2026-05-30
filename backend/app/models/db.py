@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy import text
 
 from app.models.db_models import Base
 
@@ -36,6 +37,25 @@ _async_session_maker = async_sessionmaker(
 
 
 # 3. 초기화: 테이블 생성
+async def _ensure_legacy_schema_compatibility(conn) -> None:
+    """
+    create_all()은 이미 존재하는 SQLite 테이블에 새 컬럼을 추가하지 않는다.
+    예전 DB 파일을 그대로 쓰는 개발 환경을 위해 필요한 최소 마이그레이션만 수행한다.
+    """
+    users_info = await conn.execute(text("PRAGMA table_info(users)"))
+    users_columns = {row[1] for row in users_info.fetchall()}
+
+    if "firebase_uid" not in users_columns:
+        await conn.execute(text("ALTER TABLE users ADD COLUMN firebase_uid VARCHAR"))
+        await conn.execute(
+            text("UPDATE users SET firebase_uid = id WHERE firebase_uid IS NULL OR firebase_uid = ''")
+        )
+
+    await conn.execute(
+        text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_firebase_uid ON users (firebase_uid)")
+    )
+
+
 async def init_db() -> None:
     """
     DB 파일이 없으면 만들고, 정의된 모든 테이블을 생성.
@@ -43,6 +63,7 @@ async def init_db() -> None:
     """
     async with _engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await _ensure_legacy_schema_compatibility(conn)
 
 
 # 4. 세션 컨텍스트 매니저

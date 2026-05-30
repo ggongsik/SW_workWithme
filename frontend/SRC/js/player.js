@@ -34,35 +34,196 @@ function syncPlayButton(isPlaying) {
 //YouTube IFrame API 
 let ytPlayer = null;
 let ytReady  = false;
+let ytApiPromise = null;
+let ytApiTimeout = null;
+let ytPlayerReadyResolve = null;
+let ytPlayerReadyReject = null;
+let currentYouTubeVideoId = null;
+let pendingYouTubeAutoplay = false;
+let isYouTubeVideoEnabled = localStorage.getItem('lofi_youtube_video') !== 'off';
 
 window.onYouTubeIframeAPIReady = () => {
+  createYouTubePlayer();
+};
+
+function createYouTubePlayer() {
+  if (ytPlayer) return;
+
   ytPlayer = new YT.Player('yt-player-host', {
-    height: '80', width:  '120',
-    playerVars: { autoplay: 0, controls: 0, modestbranding: 1, playsinline: 1, disablekb: 1, fs: 0, rel: 0, iv_load_policy: 3, origin: window.location.origin },
+    height: '146', width:  '260',
+    host: 'https://www.youtube.com',
+    playerVars: { autoplay: 0, controls: 0, modestbranding: 1, playsinline: 1, disablekb: 1, fs: 0, rel: 0, iv_load_policy: 3, enablejsapi: 1, origin: window.location.origin },
     events: {
       onReady: () => { 
         ytReady = true; 
+        clearTimeout(ytApiTimeout);
+        ytPlayerReadyResolve?.(ytPlayer);
         if (curTrack >= 0 && tracks[curTrack] && tracks[curTrack].type === 'youtube') {
           ytPlayer.cueVideoById({ videoId: tracks[curTrack].ytId, suggestedQuality: 'small' });
         }
       },
       onStateChange: onYTStateChange,
+      onError: onYTError,
     },
   });
-};
+}
 
-const ytScript = document.createElement('script');
-ytScript.src = "https://www.youtube.com/iframe_api";
-document.head.appendChild(ytScript);
+function ensureYouTubePlayer() {
+  if (ytReady && ytPlayer) return Promise.resolve(ytPlayer);
+  if (ytApiPromise) return ytApiPromise;
+
+  ytApiPromise = new Promise((resolve, reject) => {
+    ytPlayerReadyResolve = resolve;
+    ytPlayerReadyReject = reject;
+    ytApiTimeout = setTimeout(() => {
+      ytApiPromise = null;
+      reject(new Error('YouTube IFrame API 로딩 시간이 초과되었습니다.'));
+    }, 9000);
+
+    if (window.YT && typeof window.YT.Player === 'function') {
+      createYouTubePlayer();
+      return;
+    }
+
+    let ytScript = document.querySelector('script[data-youtube-iframe-api]');
+    if (!ytScript) {
+      ytScript = document.createElement('script');
+      ytScript.src = 'https://www.youtube.com/iframe_api';
+      ytScript.async = true;
+      ytScript.dataset.youtubeIframeApi = 'true';
+      ytScript.onerror = () => {
+        clearTimeout(ytApiTimeout);
+        ytApiPromise = null;
+        ytScript.remove();
+        ytPlayerReadyReject?.(new Error('YouTube IFrame API가 차단되었거나 로드되지 않았습니다.'));
+      };
+      document.head.appendChild(ytScript);
+    }
+  });
+
+  return ytApiPromise;
+}
+
+function getYouTubeWatchUrl(videoId = currentYouTubeVideoId) {
+  return videoId ? `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}` : 'https://www.youtube.com/';
+}
+
+function setYouTubeAssist(message, visible = true) {
+  const assist = document.getElementById('youtube-player-assist');
+  const messageEl = document.getElementById('youtube-player-message');
+  if (messageEl) messageEl.textContent = message;
+  if (assist) assist.classList.toggle('active', visible);
+}
+
+function showYouTubePlayerShell(title = 'YouTube') {
+  const shell = document.getElementById('youtube-player-shell');
+  const titleEl = document.getElementById('youtube-player-title');
+  if (titleEl) titleEl.textContent = title;
+  if (shell) shell.classList.add('active');
+}
+
+function hideYouTubePlayerShell() {
+  const shell = document.getElementById('youtube-player-shell');
+  if (shell) shell.classList.remove('active');
+  setYouTubeAssist('', false);
+}
+
+function syncYouTubeVideoButton() {
+  const btn = document.getElementById('yt-video-toggle-btn');
+  if (!btn) return;
+  btn.classList.toggle('active', isYouTubeVideoEnabled);
+  btn.title = isYouTubeVideoEnabled ? '뮤직비디오 끄기' : '뮤직비디오 켜기';
+}
+
+function maybeShowYouTubePlayerShell(title = 'YouTube') {
+  syncYouTubeVideoButton();
+  if (isYouTubeVideoEnabled) {
+    showYouTubePlayerShell(title);
+  } else {
+    hideYouTubePlayerShell();
+  }
+}
+
+function setYouTubeVideoEnabled(enabled) {
+  isYouTubeVideoEnabled = enabled;
+  localStorage.setItem('lofi_youtube_video', enabled ? 'on' : 'off');
+  syncYouTubeVideoButton();
+
+  if (!enabled) {
+    hideYouTubePlayerShell();
+    return;
+  }
+
+  if (activeSource === 'youtube' && currentYouTubeVideoId) {
+    const title = curTrack >= 0 && tracks[curTrack] ? tracks[curTrack].t : 'YouTube';
+    showYouTubePlayerShell(title);
+    setYouTubeAssist('', false);
+  }
+}
+
+function retryYouTubePlayback() {
+  if (!currentYouTubeVideoId) return;
+  setYouTubeVideoEnabled(true);
+  setYouTubeAssist('', false);
+  showYouTubePlayerShell('YouTube 재생 중');
+  ensureYouTubePlayer()
+    .then((player) => {
+      if (pendingYouTubeAutoplay) {
+        player.loadVideoById({ videoId: currentYouTubeVideoId, suggestedQuality: 'small' });
+      } else {
+        player.cueVideoById({ videoId: currentYouTubeVideoId, suggestedQuality: 'small' });
+      }
+    })
+    .catch(handleYouTubeUnavailable);
+}
+
+function openCurrentYouTube() {
+  window.open(getYouTubeWatchUrl(), '_blank', 'noopener,noreferrer');
+}
+
+window.hideYouTubePlayer = () => setYouTubeVideoEnabled(false);
+window.retryYouTubePlayback = retryYouTubePlayback;
+window.openCurrentYouTube = openCurrentYouTube;
+
+export function toggleYouTubeVideo() {
+  setYouTubeVideoEnabled(!isYouTubeVideoEnabled);
+}
+
+function describeYouTubeError(code) {
+  if (code === 2) return 'YouTube 영상 ID나 URL이 올바르지 않습니다. 링크를 다시 확인해주세요.';
+  if (code === 5) return '브라우저의 HTML5 재생 환경에서 YouTube가 거절되었습니다. 브라우저 재생 권한/확장 프로그램을 확인한 뒤 다시 시도해주세요.';
+  if (code === 100) return '이 영상은 삭제되었거나 비공개 상태라 재생할 수 없습니다.';
+  if (code === 101 || code === 150) return '이 영상은 업로더가 외부 사이트 임베드 재생을 막아둔 상태입니다. 앱 안에서는 재생할 수 없고 YouTube에서 직접 열어야 합니다.';
+  if (code === 153) return '브라우저가 YouTube 재생에 필요한 출처 정보를 보내지 못했습니다. 추적 방지/광고 차단 설정에서 YouTube를 허용한 뒤 다시 시도해주세요.';
+  return `YouTube 재생 오류가 발생했습니다. 오류 코드: ${code}`;
+}
+
+function showYouTubePermissionPrompt(message) {
+  showYouTubePlayerShell('YouTube 확인 필요');
+  syncYouTubeVideoButton();
+  setYouTubeAssist(`${message} 아래 버튼으로 다시 시도하거나 YouTube에서 직접 열 수 있습니다.`);
+}
+
+function onYTError(event) {
+  console.warn('YouTube player error:', event.data);
+  syncPlayButton(false);
+  showYouTubePermissionPrompt(describeYouTubeError(event.data));
+}
+
+function handleYouTubeUnavailable(error) {
+  console.warn('YouTube player unavailable:', error);
+  syncPlayButton(false);
+  showYouTubePermissionPrompt('YouTube 플레이어 스크립트가 차단되었거나 로드되지 않았습니다. Brave Shields/광고 차단/추적 방지에서 youtube.com을 허용해주세요.');
+}
 
 function onYTStateChange(event) {
-  if (event.data === YT.PlayerState.PLAYING) {
+  if (event.data === 1) {
     if (!audio.paused) audio.pause();
     syncPlayButton(true);
     activeSource = 'youtube';
     startYTProgressLoop(); // 유튜브 재생 시 루프 시작
-  } else if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
-    if (event.data === YT.PlayerState.ENDED) {
+  } else if (event.data === 2 || event.data === 0) {
+    if (event.data === 0) {
       if (activeSource === 'youtube') activeSource = 'local';
       nextTrack();
     }
@@ -78,12 +239,18 @@ export function extractYouTubeId(url) {
 
 export function loadYouTubeVideo(url) {
   const id = extractYouTubeId(url);
-  if (!id || !ytPlayer || !ytReady) return;
+  if (!id) return;
   if (!audio.paused) audio.pause();
 
   activeSource = 'youtube';
-  ytPlayer.loadVideoById({ videoId: id, suggestedQuality: 'small' });
+  currentYouTubeVideoId = id;
+  pendingYouTubeAutoplay = true;
+  maybeShowYouTubePlayerShell('YouTube 스트리밍');
+  setYouTubeAssist('', false);
   updateTitleUI("YouTube 스트리밍", "YouTube Music");
+  ensureYouTubePlayer()
+    .then((player) => player.loadVideoById({ videoId: id, suggestedQuality: 'small' }))
+    .catch(handleYouTubeUnavailable);
 }
 
 function startYTProgressLoop() {
@@ -210,14 +377,19 @@ function loadTrack(i, autoplay = true) {
   if (t.type === 'youtube') {
     if (!audio.paused) audio.pause();
     activeSource = 'youtube';
-    
-    if (ytPlayer && ytReady && typeof ytPlayer.loadVideoById === 'function') {
+    currentYouTubeVideoId = t.ytId;
+    pendingYouTubeAutoplay = autoplay;
+    maybeShowYouTubePlayerShell(t.t);
+    setYouTubeAssist('', false);
+
+    ensureYouTubePlayer().then((player) => {
+      if (!tracks[curTrack] || tracks[curTrack].ytId !== t.ytId) return;
       if (autoplay) {
-        ytPlayer.loadVideoById({ videoId: t.ytId, suggestedQuality: 'small' });
+        player.loadVideoById({ videoId: t.ytId, suggestedQuality: 'small' });
       } else {
-        ytPlayer.cueVideoById({ videoId: t.ytId, suggestedQuality: 'small' });
+        player.cueVideoById({ videoId: t.ytId, suggestedQuality: 'small' });
       }
-    }
+    }).catch(handleYouTubeUnavailable);
     
     if (!autoplay) syncPlayButton(false);
     
@@ -225,6 +397,7 @@ function loadTrack(i, autoplay = true) {
     if (ytPlayer && ytReady && typeof ytPlayer.getPlayerState === 'function') {
       if (ytPlayer.getPlayerState() === 1) ytPlayer.pauseVideo();
     }
+    hideYouTubePlayerShell();
     
     activeSource = 'local';
     audio.src = t.url;
@@ -288,6 +461,7 @@ function renderPlaylist() {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
+  syncYouTubeVideoButton();
   const plBody = document.getElementById('pl-body');
   if (!plBody) return;
 
@@ -377,19 +551,24 @@ export function togglePlay() {
   if (curTrack < 0) { loadTrack(0); return; }
 
   if (tracks[curTrack].type === 'youtube') {
-    if (ytPlayer && ytReady && typeof ytPlayer.getPlayerState === 'function') {
-      const state = ytPlayer.getPlayerState();
+    currentYouTubeVideoId = tracks[curTrack].ytId;
+    pendingYouTubeAutoplay = true;
+    maybeShowYouTubePlayerShell(tracks[curTrack].t);
+    setYouTubeAssist('', false);
+    ensureYouTubePlayer().then((player) => {
+      if (!tracks[curTrack] || tracks[curTrack].type !== 'youtube') return;
+      const state = typeof player.getPlayerState === 'function' ? player.getPlayerState() : -1;
       
       // 1: 재생 중, 2: 일시 정지, 5: 장전됨(Cue), -1: 시작 전
       if (state === 1) {
-        ytPlayer.pauseVideo();
+        player.pauseVideo();
       } else if (state === 2) {
-        ytPlayer.playVideo();
+        player.playVideo();
       } else {
         // 대기 중(5)이거나 에러/시작 전(-1)이라면 무조건 영상을 새로 불러와서 '강제 재생'
-        ytPlayer.loadVideoById({ videoId: tracks[curTrack].ytId, suggestedQuality: 'small' });
+        player.loadVideoById({ videoId: tracks[curTrack].ytId, suggestedQuality: 'small' });
       }
-    }
+    }).catch(handleYouTubeUnavailable);
   } else {
     // 로컬 파일 재생 로직
     if (audio.paused) {
@@ -428,7 +607,8 @@ export function removeTrack(e, i) {
 
   if (curTrack === i) {
     audio.pause();
-    if (ytPlayer && ytReady && ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) ytPlayer.pauseVideo();
+    if (ytPlayer && ytReady && ytPlayer.getPlayerState() === 1) ytPlayer.pauseVideo();
+    hideYouTubePlayerShell();
     curTrack = -1;
     updateTitleUI("—", "파일을 추가하세요");
     if (tracks.length) loadTrack(0, false);
@@ -508,7 +688,7 @@ export function refreshPlayerUI() {
   if (activeSource === 'local') {
     isPlaying = !audio.paused;
   } else if (activeSource === 'youtube' && ytPlayer && ytReady) {
-    isPlaying = (ytPlayer.getPlayerState() === YT.PlayerState.PLAYING);
+    isPlaying = (ytPlayer.getPlayerState() === 1);
   }
   syncPlayButton(isPlaying);
 }
@@ -518,7 +698,8 @@ export function reloadPlaylistForUser() {
   
   // 기존 재생 중이던 음악 정지
   if (audio && !audio.paused) audio.pause();
-  if (ytPlayer && ytReady && ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) ytPlayer.pauseVideo();
+  if (ytPlayer && ytReady && ytPlayer.getPlayerState() === 1) ytPlayer.pauseVideo();
+  hideYouTubePlayerShell();
   
   // UI 초기화
   curTrack = -1;

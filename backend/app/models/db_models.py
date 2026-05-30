@@ -68,6 +68,7 @@ class SessionRecord(Base):
     )
     started_at : Mapped[float] = mapped_column(Float, nullable = False)  # 세션(연결) 시작
     ended_at : Mapped[float] = mapped_column(Float, nullable = False)    # 세션(연결) 종료
+    duration_sec : Mapped[float] = mapped_column(Float, nullable = False, default = 0.0)
 
     # delta_depth (코-어깨 깊이 차) 캘리브레이션 값 (IF z-score 기준)
     baseline : Mapped[Optional[float]] = mapped_column(Float, nullable = True)

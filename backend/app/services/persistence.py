@@ -35,6 +35,7 @@ async def save_session_and_accumulate(
             user_id = state.user_id,
             started_at = state.started_at,
             ended_at = session_ended_at,
+            duration_sec = max(0.0, session_ended_at - state.started_at),
             baseline = state.baseline_delta_depth,
             baseline_std = state.baseline_std,
             threshold = state.threshold,
@@ -66,6 +67,5 @@ async def save_session_and_accumulate(
             daily.updated_at = time.time()
 
         await db.commit()
-
 
 

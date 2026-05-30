@@ -57,7 +57,7 @@ function updateRing() {
   
   if (ringEl) {
     ringEl.style.strokeDashoffset = (CIRC * pct).toFixed(2);
-    ringEl.style.stroke = (phase === 'focus') ? '#00bfff' : '#7fff9a';
+    ringEl.style.stroke = (phase === 'focus') ? '#39c5bb' : '#9af3e6';
   }
 }
 
