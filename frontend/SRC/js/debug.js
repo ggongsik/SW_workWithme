@@ -9,6 +9,10 @@ const state = {
   forcedState: null,
   postureState: 'idle',
   rawPosture: 'idle',
+  turtleDetected: null,
+  calibrationSamples: 0,
+  calibrationRequired: 10,
+  calibrationTarget: 30,
   tracking: false,
   trackingStatus: 'idle',
   lastFrameAt: 0,
@@ -37,6 +41,7 @@ function formatTime(ts = Date.now()) {
 }
 
 function pushLog(kind, message, data) {
+  if (!state.enabled) return;
   const entry = { time: Date.now(), kind, message, data };
   state.logs.unshift(entry);
   if (state.logs.length > MAX_LOGS) state.logs.length = MAX_LOGS;
@@ -58,10 +63,13 @@ function stateClass(value) {
 }
 
 function refreshSummary() {
+  if (!state.enabled) return;
   const status = $('debug-tracking-status');
   const posture = $('debug-posture-state');
   const forced = $('debug-forced-state');
   const ws = $('debug-ws-state');
+  const turtle = $('debug-turtle-detected');
+  const calib = $('debug-calib-samples');
   const perf = $('debug-performance');
 
   if (status) {
@@ -75,6 +83,19 @@ function refreshSummary() {
   if (forced) {
     forced.textContent = state.forcedState ? stateLabel(state.forcedState) : 'OFF';
     forced.dataset.state = stateClass(state.forcedState);
+  }
+  if (turtle) {
+    if (state.turtleDetected == null) {
+      turtle.textContent = 'WAIT';
+      turtle.dataset.state = 'warn';
+    } else {
+      turtle.textContent = state.turtleDetected ? 'YES' : 'NO';
+      turtle.dataset.state = state.turtleDetected ? 'alert' : 'idle';
+    }
+  }
+  if (calib) {
+    calib.textContent = `${state.calibrationSamples}/${state.calibrationTarget}`;
+    calib.dataset.state = state.calibrationSamples >= state.calibrationRequired ? 'idle' : 'warn';
   }
   if (ws) ws.textContent = state.wsState;
   if (perf) {
@@ -96,6 +117,7 @@ function refreshSummary() {
 }
 
 function renderLogs() {
+  if (!state.enabled) return;
   const list = $('debug-log-list');
   if (!list) return;
   list.textContent = '';
@@ -180,6 +202,20 @@ export function setDebugPostureState(nextState, detail = {}) {
   pushLog('posture', `server judged ${stateLabel(nextState)}`, detail);
 }
 
+export function setDebugTurtleDetection(isTurtle, detail = {}) {
+  state.turtleDetected = !!isTurtle;
+  pushLog('turtle', state.turtleDetected ? 'detected' : 'not detected', detail);
+  refreshSummary();
+}
+
+export function setDebugCalibrationProgress(detail = {}) {
+  state.calibrationSamples = Number(detail.sample_count || 0);
+  state.calibrationRequired = Number(detail.required_samples || state.calibrationRequired || 10);
+  state.calibrationTarget = Number(detail.target_samples || state.calibrationTarget || 30);
+  pushLog('calibration', `${state.calibrationSamples}/${state.calibrationTarget}`, detail);
+  refreshSummary();
+}
+
 export function setDebugTrackingStatus(status, detail = {}) {
   state.trackingStatus = status;
   state.tracking = status === 'running';
@@ -188,6 +224,7 @@ export function setDebugTrackingStatus(status, detail = {}) {
 }
 
 export function noteDebugFrameSent(sizeBytes = 0) {
+  if (!state.enabled) return;
   state.lastSendAt = Date.now();
   state.framesSent += 1;
   pushLog('ws-out', `frame ${Math.round(sizeBytes / 1024)} KB`);
@@ -195,11 +232,13 @@ export function noteDebugFrameSent(sizeBytes = 0) {
 }
 
 export function noteDebugPoseResult(data) {
+  if (!state.enabled) return;
   state.lastReceiveAt = Date.now();
   pushLog('ws-in', data?.type || 'message', data);
 }
 
 export function noteDebugWebSocket(direction, message, data) {
+  if (!state.enabled) return;
   pushLog(direction, message, data);
 }
 
@@ -210,6 +249,7 @@ export function setDebugWebSocketState(wsState) {
 }
 
 export function noteDebugTrackingHeartbeat(kind, detail = {}) {
+  if (!state.enabled) return;
   state.lastFrameAt = Date.now();
   if (!['tick', 'landmarks', 'no_landmarks', 'waiting_landmarks', 'encoding_busy'].includes(kind)) {
     pushLog('tracking', kind, detail);
@@ -218,6 +258,7 @@ export function noteDebugTrackingHeartbeat(kind, detail = {}) {
 }
 
 export function noteDebugRenderFrame() {
+  if (!state.enabled) return;
   frameCount += 1;
   const now = performance.now();
   const elapsed = now - lastFpsAt;

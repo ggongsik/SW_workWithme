@@ -1,4 +1,5 @@
 import time
+import math
 import numpy as np
 
 from dataclasses import dataclass
@@ -9,8 +10,10 @@ from app.websocket.manager import SessionState
 
 
 # ===== 상수 =====
-# 프론트가 10초 타이머를 관리. 백엔드는 시간 추적 안 함.
-MIN_SAMPLES_REQUIRED = 30  # 최소 30프레임 (3FPS 기준 10초), 얼마나 받을지는 상의 필요
+# 30프레임은 안정적인 기준값을 위한 목표치다.
+# 실제 웹 세션에서는 AI 처리 지연으로 10초 안에 30개를 못 채울 수 있어 임시 최소치를 낮춘다.
+TARGET_SAMPLES = 30
+MIN_SAMPLES_REQUIRED = 10
 THRESHOLD_SIGMA = 2.0
 
 # ===== 캘리브레이션 결과 =====
@@ -35,6 +38,8 @@ def add_sample(state: SessionState, delta_depth: float) -> None:
     """
     if (state.mode != "calibrating") or (state.calibration_started_at is None):
         raise ValueError("캘리브레이션 상태가 아닙니다")
+    if not math.isfinite(delta_depth):
+        return
 
     state.calibration_samples.append(delta_depth)
 
@@ -52,6 +57,10 @@ def finalize_calibration(state: SessionState) -> Optional[CalibrationResult]:
         return None
 
     arr = np.array(samples, dtype=np.float64)
+    arr = arr[np.isfinite(arr)]
+    if (len(arr) < MIN_SAMPLES_REQUIRED):
+        return None
+
     baseline = float(np.mean(arr))
     std = float(np.std(arr, ddof=1))  # 표본 표준편차
     threshold = baseline + THRESHOLD_SIGMA * std
@@ -69,7 +78,7 @@ def finalize_calibration(state: SessionState) -> Optional[CalibrationResult]:
         baseline = baseline,
         std = std,
         threshold = threshold,
-        sample_count = len(samples),
+        sample_count = len(arr),
         duration_sec = duration
     )
 

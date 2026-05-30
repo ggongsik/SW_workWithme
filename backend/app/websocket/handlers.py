@@ -21,6 +21,7 @@ from app.models.schemas import (
     SessionStarted,
     ErrorMessage,
     CalibrationComplete,
+    CalibrationProgress,
     DetectionResult as DetectionResultMsg,
     SessionEnded
 )
@@ -86,17 +87,17 @@ async def handle_posture_connection(websocket: WebSocket, user_id: str | None = 
 
             if message["type"] == "websocket.disconnect":
                 break
-
+            
             # JSON 인지 binary인지 구분
             if "text" in message:
                 await _handle_text_message(state, message["text"]) # async 함수는 무조건 await로 호출
             elif "bytes" in message:
                 # 프레임 데이터 (Step 7에서 구현)
                 await _handle_frame(state, message["bytes"])
-
+    
     except WebSocketDisconnect:
         pass  # 정상적인 연결 끊김은 무시
-
+    
     finally:
         # 4. 연결 정리 (예외 발생해도 반드시 실행)
         manager.disconnect(state.session_id)
@@ -113,12 +114,12 @@ async def _handle_text_message(state: SessionState, raw_text: str) -> None:
         data = json.loads(raw_text) # JSON 문자열을 딕셔너리로 변환
     except json.JSONDecodeError:
         await send_error(
-            state.websocket,
+            state.websocket, 
             code = "INVALID_JSON",
             message = "메시지가 유효한 JSON이 아닙니다"
         )
-        return
-
+        return 
+        
     msg_type = data.get("type")
 
     if msg_type == "start_calibration" :
@@ -149,8 +150,8 @@ async def _start_calibration(state: SessionState) -> None:
         print(f"[{state.session_id[:8]}] 재캘리브레이션 요청")
         state.is_turtle_active = False
         state.ema_value = None
-
-
+        
+    
     calibration.start_calibration(state)
     print(f"[{state.session_id[:8]}] 캘리브레이션 시작")
 
@@ -171,10 +172,14 @@ async def _stop_calibration(state: SessionState) -> None:
 
     # 샘플 부족 처리: 현재는 A안 (에러 + idle 복귀). 추후 상의 후 변경 가능.
     if result is None:
+        sample_count = len(state.calibration_samples)
         await send_error(
             state.websocket,
             code = "INSUFFICIENT_SAMPLES",
-            message = f"수집된 샘플이 부족합니다 (최소 {calibration.MIN_SAMPLES_REQUIRED}개 필요)"
+            message = (
+                f"수집된 샘플이 부족합니다 "
+                f"({sample_count}/{calibration.MIN_SAMPLES_REQUIRED}, 목표 {calibration.TARGET_SAMPLES}개)"
+            )
         )
         state.mode = "idle"
         return
@@ -210,11 +215,11 @@ async def _start_monitoring(state: SessionState) -> None:
 
 async def _handle_frame(state: SessionState, frame_bytes: bytes) -> None:
     """
-    프레임 바이트 처리.
+    프레임 바이트 처리. 
     """
     if state.mode == "idle":
         await send_error(
-            state.websocket,
+            state.websocket, 
             code = "NOT CALIBRATED",
             message = "캘리브레이션을 먼저 시작해주세요 (start_calibration)"
         )
@@ -227,8 +232,8 @@ async def _handle_frame(state: SessionState, frame_bytes: bytes) -> None:
             code = "INVALID_FRAME",
             message = "프레임 디코딩 실패"
         )
-        return
-
+        return 
+    
     # 2. AI 파이프라인 호출 ← 여기가 가장 중요!
     # 동기 함수를 별도 쓰레드에서 실행하여 sleep 부분에서 cpu를 이벤트 루프에 양보
     loop = asyncio.get_running_loop() # 이벤트 루프 객체
@@ -253,7 +258,7 @@ async def _handle_frame(state: SessionState, frame_bytes: bytes) -> None:
         await _process_calibration_frame(state, result['delta_depth'])
     elif state.mode == "monitoring":
         await _process_monitoring_frame(state, result["delta_depth"])
-
+        
 
 async def _process_calibration_frame(state: SessionState, delta_depth: float) -> None:
     """
@@ -263,11 +268,18 @@ async def _process_calibration_frame(state: SessionState, delta_depth: float) ->
     보내면 그때 finalize_calibration이 호출됨 (_stop_calibration 참조).
     """
     calibration.add_sample(state, delta_depth)
+    sample_count = len(state.calibration_samples)
+    await send_json(state.websocket, CalibrationProgress(
+        sample_count=sample_count,
+        required_samples=calibration.MIN_SAMPLES_REQUIRED,
+        target_samples=calibration.TARGET_SAMPLES,
+        enough_samples=sample_count >= calibration.MIN_SAMPLES_REQUIRED,
+    ))
 
 async def _process_monitoring_frame(state: SessionState, delta_depth: float) -> None:
     """모니터링 모드의 프레임 처리"""
     prev_state = state.is_turtle_active
-
+    
     result = detection.detect(state, delta_depth)
     if result is None:
         return  # 안전망 (이론상 도달하지 않음)
@@ -331,3 +343,6 @@ async def _stop_session(state: SessionState) -> None:
     await send_json(state.websocket, SessionEnded(session_id = state.session_id))
     state.monitoring_started_at = None  # 다음 모니터링(재캘리브레이션 등) 대비 리셋
     print(f"[{state.session_id[:8]}] 세션 저장 완료 (모니터링 {monitoring_duration:.1f}초)")
+
+
+

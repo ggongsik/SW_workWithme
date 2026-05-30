@@ -8,9 +8,11 @@ import { fetchAndShowReport, setUIGlow } from './ui.js';
 import { change3DPose } from './character.js';
 import {
   getForcedDebugState,
+  setDebugCalibrationProgress,
   noteDebugPoseResult,
   noteDebugWebSocket,
   setDebugPostureState,
+  setDebugTurtleDetection,
   setDebugWebSocketState,
 } from './debug.js';
 
@@ -126,6 +128,7 @@ export async function initWebSocket() {
 
       // 백엔드에서 보낸 DetectionResultMsg 처리
       if (data && data.hasOwnProperty('is_turtle')) {
+        setDebugTurtleDetection(data.is_turtle, data);
 
         if (data.is_turtle === false) {
           // 1. 정상 자세로 돌아온 경우
@@ -152,6 +155,10 @@ export async function initWebSocket() {
             changeUIState('idle');
           }
         }
+      }
+      else if (data && data.type === 'calibration_progress') {
+        setDebugCalibrationProgress(data);
+        emitPostureEvent('calibration-progress', data);
       }
       else if (data && data.hasOwnProperty('baseline_delta_depth')) {
         isCalibrated = true;

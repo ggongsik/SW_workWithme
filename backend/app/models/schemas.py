@@ -4,7 +4,7 @@ from typing import Literal, Optional
 class ClientMessage(BaseModel):
     type: str # 변수
 
-class StartCalibration(ClientMessage): # 상속의 목적 : 이건 `ClientMessage`, 클라이언트가 보내는 메시지다.
+class StartCalibration(ClientMessage): # 상속의 목적 : 이건 `ClientMessage`, 클라이언트가 보내는 메시지다. 
     type: Literal["start_calibration"] # 상속받아서 재정의
 
 class StopSession(ClientMessage):
@@ -22,6 +22,13 @@ class CalibrationComplete(BaseModel):
     baseline_delta_depth: float
     baseline_std: float
     threshold: float # baseline_delta_depth + 2*baseline_std
+
+class CalibrationProgress(BaseModel):
+    type: Literal["calibration_progress"] = "calibration_progress"
+    sample_count: int
+    required_samples: int
+    target_samples: int
+    enough_samples: bool
 
 class DetectionResult(BaseModel):
     type: Literal["detection_result"] = "detection_result"

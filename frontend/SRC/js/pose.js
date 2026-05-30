@@ -70,10 +70,12 @@ pose.onResults((results) => {
 // ============================================================================
 // 자세 트래킹 및 ArrayBuffer 바이너리 전송
 
-const POSTURE_SEND_INTERVAL_MS = 250;
-const ENCODE_WIDTH = 480;
-const ENCODE_HEIGHT = 360;
-const JPEG_QUALITY = 0.6;
+const POSTURE_SEND_INTERVAL_MS = 200;
+const ENCODE_WIDTH = 360;
+const ENCODE_HEIGHT = 270;
+const JPEG_QUALITY = 0.55;
+const CALIBRATION_MIN_SECONDS = 10;
+const CALIBRATION_MAX_SECONDS = 30;
 const encodeCanvas = document.createElement('canvas');
 encodeCanvas.width = ENCODE_WIDTH;
 encodeCanvas.height = ENCODE_HEIGHT;
@@ -176,12 +178,37 @@ function waitForCalibrationComplete(timeoutMs = 30000) {
   });
 }
 
+function observeCalibrationProgress() {
+  const progress = {
+    sampleCount: 0,
+    requiredSamples: 10,
+    targetSamples: 30,
+    enoughSamples: false,
+  };
+
+  function onProgress(event) {
+    const detail = event.detail || {};
+    progress.sampleCount = Number(detail.sample_count || progress.sampleCount || 0);
+    progress.requiredSamples = Number(detail.required_samples || progress.requiredSamples || 10);
+    progress.targetSamples = Number(detail.target_samples || progress.targetSamples || 30);
+    progress.enoughSamples = !!detail.enough_samples;
+  }
+
+  window.addEventListener('posture:calibration-progress', onProgress);
+  return {
+    progress,
+    stop() {
+      window.removeEventListener('posture:calibration-progress', onProgress);
+    },
+  };
+}
+
 function stopCalibrationFrameSender(status = 'calibration_done') {
   if (trackingTimer) {
     clearInterval(trackingTimer);
     trackingTimer = null;
-    setDebugTrackingStatus(status);
   }
+  setDebugTrackingStatus(status);
 }
 
 export function stopCamera() {
@@ -293,8 +320,10 @@ export async function startCalibration() {
     return;
   }
 
-  let count = 10;
-  baseBtn.innerText = `측정 중... (${count}초 남음)`;
+  let elapsed = 0;
+  let finishing = false;
+  const progressObserver = observeCalibrationProgress();
+  baseBtn.innerText = `측정 중... (${CALIBRATION_MIN_SECONDS}초 남음, 0/30)`;
 
   if (!sendCommand("start_calibration")) {
     alert("서버 연결이 아직 준비되지 않았습니다. 잠시 후 다시 시도해주세요.");
@@ -311,12 +340,24 @@ export async function startCalibration() {
   }
 
   calibTimer = setInterval(() => {
-    count--;
-    if (count > 0) {
-      baseBtn.innerText = `측정 중... (${count}초 남음)`;
-    } else {
-      clearInterval(calibTimer);
+    elapsed++;
+    const { sampleCount, requiredSamples, targetSamples, enoughSamples } = progressObserver.progress;
+    const remaining = Math.max(0, CALIBRATION_MIN_SECONDS - elapsed);
 
+    if (elapsed < CALIBRATION_MIN_SECONDS) {
+      baseBtn.innerText = `측정 중... (${remaining}초 남음, ${sampleCount}/${targetSamples})`;
+      return;
+    }
+
+    if (!enoughSamples && elapsed < CALIBRATION_MAX_SECONDS) {
+      baseBtn.innerText = `샘플 수집 중... (${sampleCount}/${requiredSamples}, 목표 ${targetSamples})`;
+      return;
+    }
+
+    if (!finishing) {
+      finishing = true;
+      clearInterval(calibTimer);
+      progressObserver.stop();
       finishCalibration({ baseBtn, toggleBtn, closeBtn, wasTracking });
     }
   }, 1000);
@@ -327,6 +368,9 @@ async function finishCalibration({ baseBtn, toggleBtn, closeBtn, wasTracking }) 
   baseBtn.innerText = "서버 기준값 확인 중...";
 
   const completion = waitForCalibrationComplete();
+  if (!wasTracking && !isTracking) {
+    stopCalibrationFrameSender('calibration_finalizing');
+  }
   if (!sendCommand("stop_calibration")) {
     setCalibrated(false);
     stopCalibrationFrameSender('error');
