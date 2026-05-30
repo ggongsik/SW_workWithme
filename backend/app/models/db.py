@@ -4,7 +4,10 @@ DB 연결 및 세션 관리.
 비동기 SQLAlchemy + aiosqlite 사용.
 """
 
+import os
+import shutil
 from contextlib import asynccontextmanager
+from pathlib import Path
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -17,7 +20,26 @@ from app.models.db_models import Base
 
 # SQLite 파일 경로. backend 디렉터리 기준 상대경로.
 # echo=True로 두면 SQL 쿼리가 콘솔에 다 찍힘 (학습용으로 좋음, 프로덕션엔 False)
-DATABASE_URL = "sqlite+aiosqlite:///./posture.db"
+def _resolve_database_path() -> Path:
+    configured_path = os.getenv("WORKWITHME_DB_PATH")
+    db_path = Path(configured_path).expanduser() if configured_path else Path.home() / ".workwithme" / "posture.db"
+    if not db_path.is_absolute():
+        db_path = (Path.cwd() / db_path).resolve()
+
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if configured_path is None and not db_path.exists():
+        legacy_path = Path.cwd() / "posture.db"
+        if legacy_path.exists():
+            shutil.copy2(legacy_path, db_path)
+
+    return db_path
+
+
+# Keep runtime DB writes outside the source tree. Live Server/file watchers can
+# reload the frontend when posture.db changes, which looks like a forced logout.
+DATABASE_PATH = _resolve_database_path()
+DATABASE_URL = f"sqlite+aiosqlite:///{DATABASE_PATH.as_posix()}"
 
 
 # 1. Engine: DB와의 물리적 연결 풀

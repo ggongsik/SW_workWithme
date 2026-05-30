@@ -1,6 +1,28 @@
 # UI/UX 및 디버깅 기능 변경 기록
 
+> `feat/UI` 브랜치는 테스트 후 문제가 없으면 `develop`에 머지할 예정입니다. 캘리브레이션, 자세 측정 지속 실행, WebSocket 재연결, 리포트 생성, YouTube/MV, PiP, 디버그 패널을 실제 브라우저에서 확인 부탁드립니다.
+
 이 문서는 `feat/UI` 브랜치에 올린 UI/UX, 자세 측정, YouTube 플레이어, 로컬 개발 인증, DB 호환성 관련 변경 사항을 정리한다.
+
+## 2026-05-30 추가 수정
+
+- WebSocket이 중간에 닫히는 원인을 추적할 수 있도록 백엔드 WebSocket 종료 사유와 traceback 로그를 추가했다.
+- WebSocket이 예기치 않게 닫혀도 진행 중인 모니터링 세션을 DB에 저장하도록 보강했다.
+- 사용자별 캘리브레이션 기준값을 임시 스냅샷으로 보존하고, 재접속 시 기준값을 복원해 다시 캘리브레이션을 요구하지 않도록 했다.
+- 프론트엔드에서 WebSocket close 이벤트를 감지해 재연결하고, 자세 측정 중이면 `start_monitoring`을 다시 보내도록 했다.
+- AI 프레임 처리 실패, 비정상 depth, NaN 값이 WebSocket 핸들러 전체를 종료시키지 않도록 예외 처리를 추가했다.
+- WebSocket 송신 버퍼가 과도하게 쌓이면 프레임을 건너뛰어 브라우저/서버 과부하성 연결 종료를 줄였다.
+- 자세 측정 중 로그인 화면으로 돌아가는 문제를 줄이기 위해 SQLite DB 기본 위치를 소스 폴더 밖인 `~/.workwithme/posture.db`로 변경했다. 기존 `posture.db`가 있으면 새 위치로 1회 복사한다.
+- 페이지가 새로고침되더라도 `localStorage.lofi_user_id`가 남아 있으면 로그인 오버레이를 자동으로 닫고 WebSocket을 다시 연결하도록 복구 로직을 추가했다.
+
+관련 파일:
+
+- `backend/app/models/db.py`
+- `backend/app/websocket/handlers.py`
+- `backend/app/websocket/manager.py`
+- `frontend/SRC/js/network.js`
+- `frontend/SRC/js/pose.js`
+- `frontend/SRC/js/ui.js`
 
 ## 1. 전체 UI/UX 리디자인
 

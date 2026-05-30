@@ -8,7 +8,7 @@ AI 파이프라인 인터페이스 정의 + Mock 구현.
 import random
 import time
 from typing import Protocol, TypedDict
-import numpy as np
+import numpy as np  
 
 class PoseResult(TypedDict):
     """
@@ -29,17 +29,17 @@ class PosturePipeline(Protocol):
 class MockPosturePipeline:
     """
     호출 횟수 기반 시뮬레이션 Mock 파이프라인.
-
+    
     시나리오 (10 FPS 가정):
       프레임   1~ 100 (10초): 바른 자세  ← 캘리브레이션 구간
       프레임 101~ 150 ( 5초): 거북목     ← 모니터링 시작 직후
       프레임 151~ 200 ( 5초): 바른 자세
       프레임 201~ 250 ( 5초): 거북목
       ...
-
+    
     이렇게 하면 클라이언트 시작 시점·네트워크 지연과 무관하게
     '캘리브레이션 끝난 직후 거북목 → 정상 → 거북목' 패턴이 보장됨.
-
+    
     Protocol 인터페이스(process_frame만)를 그대로 유지함.
     """
 
@@ -65,7 +65,7 @@ class MockPosturePipeline:
 
         # 실제 AI 처리에 30~50ms 걸린다고 가정
         time.sleep(random.uniform(0.03,0.05))
-
+        
         self._frame_count = self._frame_count + 1
 
         base = self._senario_base(self._frame_count)
@@ -106,6 +106,6 @@ class MockPosturePipeline:
 
 
 
-
+        
 
 

@@ -96,6 +96,7 @@ function makeDraggable(el, handle) {
 window.addEventListener('DOMContentLoaded', () => {
   setInterval(updateClock, 1000);
   updateClock();
+  restoreSavedLogin();
 
   const pomoDrag = document.getElementById('pomo-drag');
   if(pomoDrag) makeDraggable(pomoDrag);
@@ -110,6 +111,17 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   });
 });
+
+function restoreSavedLogin() {
+  const savedUserId = localStorage.getItem('lofi_user_id');
+  if (!savedUserId) return;
+
+  reloadPlaylistForUser();
+  closeLoginOverlay();
+  initWebSocket().catch((error) => {
+    console.warn('Saved login WebSocket restore failed:', error);
+  });
+}
 
 
 // ============================================================================
@@ -154,6 +166,11 @@ export function logout() {
   const isConfirmed = confirm("정말 종료하시겠습니까? (오늘의 리포트가 생성됩니다)");
   if (!isConfirmed) return;
 
+  const stopRequested = sendCommand("stop_session");
+  if (!stopRequested) {
+    console.warn("stop_session command could not be sent; relying on disconnect auto-save.");
+  }
+
   if (typeof stopCamera === 'function') {
     stopCamera();
   }
@@ -165,8 +182,6 @@ export function logout() {
   console.log("종료 처리 시작! 백엔드에 세션 종료 요청 및 리포트 강제 호출");
 
   // 1. 혹시 모를 열려있는 세션을 위해 종료 신호 전송
-  sendCommand("stop_session");
-
   setTimeout(() => {
     if (typeof fetchAndShowReport === 'function') {
       fetchAndShowReport();

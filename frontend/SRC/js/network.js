@@ -19,6 +19,7 @@ import {
 let ws = null;
 let wsOpenPromise = null;
 const LOCAL_DEV_AUTH_TOKEN = 'workwithme-local-admin';
+const MAX_WS_BUFFERED_BYTES = 512 * 1024;
 
 // 거북목 지속 시간 추적 변수
 let turtleStartTime = null;
@@ -91,6 +92,7 @@ export async function initWebSocket() {
       window.clearTimeout(timeoutId);
       console.log('WebSocket Connected');
       setDebugWebSocketState('open');
+      emitPostureEvent('websocket-open', { state: 'open' });
       wsOpenPromise = null;
       resolve(ws);
     };
@@ -113,6 +115,7 @@ export async function initWebSocket() {
       currentPoseState = 'idle';
       setDebugWebSocketState('closed');
       noteDebugWebSocket('ws-in', 'closed', { code: event.code, reason: event.reason });
+      emitPostureEvent('websocket-closed', { code: event.code, reason: event.reason });
     };
   });
 
@@ -213,6 +216,12 @@ export function isWebSocketOpen() {
 
 export function sendPoseData(buffer) {
   if (ws && ws.readyState === WebSocket.OPEN) {
+    if (ws.bufferedAmount > MAX_WS_BUFFERED_BYTES) {
+      noteDebugWebSocket('ws-drop', 'frame skipped: websocket backpressure', {
+        buffered_kb: Math.round(ws.bufferedAmount / 1024),
+      });
+      return false;
+    }
     ws.send(buffer);
     return true;
   }

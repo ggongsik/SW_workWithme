@@ -81,6 +81,8 @@ encodeCanvas.width = ENCODE_WIDTH;
 encodeCanvas.height = ENCODE_HEIGHT;
 const encodeCtx = encodeCanvas.getContext('2d', { willReadFrequently: true });
 let isEncodingFrame = false;
+let reconnectPromise = null;
+let lastReconnectAttemptAt = 0;
 
 function startPostureTracking() {
   if (trackingTimer) clearInterval(trackingTimer);
@@ -93,6 +95,7 @@ function startPostureTracking() {
     }
     if (!isWebSocketOpen()) {
       noteDebugTrackingHeartbeat('waiting_websocket');
+      void ensureMonitoringSocketReady();
       return;
     }
     if (isEncodingFrame) {
@@ -126,6 +129,26 @@ function startPostureTracking() {
 
 export let isTracking = false;
 
+window.addEventListener('posture:websocket-closed', () => {
+  if (!isTracking) return;
+  void ensureMonitoringSocketReady();
+});
+
+window.addEventListener('posture:server-error', (event) => {
+  const code = event.detail?.code;
+  if (code !== 'NOT_CALIBRATED' && code !== 'NOT CALIBRATED') return;
+
+  if (isTracking) {
+    isTracking = false;
+    setDebugTrackingStatus('needs_calibration', { code });
+    if (trackingTimer) {
+      clearInterval(trackingTimer);
+      trackingTimer = null;
+    }
+  }
+  setCalibrated(false);
+});
+
 async function ensureWebSocketReady() {
   if (isWebSocketOpen()) return true;
 
@@ -137,6 +160,44 @@ async function ensureWebSocketReady() {
     setDebugTrackingStatus('error', { message: error.message });
     return false;
   }
+}
+
+async function ensureMonitoringSocketReady() {
+  if (isWebSocketOpen()) return true;
+
+  const now = Date.now();
+  if (reconnectPromise) return false;
+  if (now - lastReconnectAttemptAt < 1500) return false;
+
+  lastReconnectAttemptAt = now;
+  setDebugTrackingStatus('reconnecting_websocket');
+  noteDebugTrackingHeartbeat('reconnecting_websocket');
+
+  reconnectPromise = initWebSocket()
+    .then(() => {
+      if (!isWebSocketOpen()) return false;
+
+      if (isTracking && isCalibrated) {
+        sendCommand("start_monitoring");
+      }
+
+      if (isTracking) {
+        setDebugTrackingStatus('running', { interval_ms: POSTURE_SEND_INTERVAL_MS, reconnected: true });
+      }
+      noteDebugTrackingHeartbeat('websocket_restored');
+      return true;
+    })
+    .catch((error) => {
+      console.warn('WebSocket reconnect failed:', error);
+      setDebugTrackingStatus('reconnect_failed', { message: error.message });
+      return false;
+    })
+    .finally(() => {
+      reconnectPromise = null;
+    });
+
+  await reconnectPromise;
+  return isWebSocketOpen();
 }
 
 function waitForCalibrationComplete(timeoutMs = 30000) {
@@ -165,6 +226,7 @@ function waitForCalibrationComplete(timeoutMs = 30000) {
         'INSUFFICIENT_SAMPLES',
         'NOT_CALIBRATING',
         'INVALID_FRAME',
+        'NOT_CALIBRATED',
         'NOT CALIBRATED',
       ]);
 
@@ -415,7 +477,7 @@ async function finishCalibration({ baseBtn, toggleBtn, closeBtn, wasTracking }) 
   }
 }
 
-export function togglePostureCorrection() {
+export async function togglePostureCorrection() {
   if (!isCalibrated) {
     alert(" 측정된 기준 자세가 없습니다. '기본 자세 설정'을 먼저 진행해 주세요!");
     return;
@@ -423,6 +485,15 @@ export function togglePostureCorrection() {
   const toggleBtn = document.getElementById('calib-toggle-btn');
 
   if (!isTracking) {
+    if (!await ensureWebSocketReady()) {
+      alert("서버 연결이 준비되지 않았습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+    if (!sendCommand("start_monitoring")) {
+      alert("자세 측정 시작 명령을 보내지 못했습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+
     // 트래킹 켜기
     isTracking = true;
     toggleBtn.innerText = "자세 교정 종료";
@@ -431,7 +502,6 @@ export function togglePostureCorrection() {
     toggleBtn.style.color = "#ff3c50";
 
     startPostureTracking();
-    sendCommand("start_monitoring");
     console.log("▶️ 자세 교정 시작됨! (백그라운드 카메라 가동 중)");
 
     closeCalibration();

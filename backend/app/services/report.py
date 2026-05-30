@@ -33,10 +33,10 @@ def build_intervals(
 ) -> List[TurtleInterval]:
     """
     이벤트 로그 → 거북목 구간 리스트로 변환.
-
+    
     이벤트는 [정상→거북목→정상→거북목→...] 식의 상태 전이.
     연속한 두 이벤트 (turtle=True, turtle=False) 쌍이 한 구간을 이룸.
-
+    
     마지막이 turtle=True로 끝나면 session_ended_at을 끝점으로 사용.
     """
     intervals: List[TurtleInterval] = []
@@ -59,7 +59,7 @@ def build_intervals(
                 duration_sec = end - start
             ))
         i = i + 1
-
+    
     return intervals
 
 def compute_stats(state: SessionState, session_ended_at: float) -> ReportStats:
