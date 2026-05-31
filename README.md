@@ -1,3 +1,19 @@
+## feat/UI 테스트 요청
+
+`feat/UI` 브랜치는 테스트 후 문제가 없으면 `develop`에 머지할 예정입니다. 캘리브레이션, 자세 측정 지속 실행, WebSocket 재연결, 리포트 생성, YouTube/MV, PiP, 디버그 패널을 실제 브라우저에서 확인 부탁드립니다.
+
+### 2026-05-30 추가 수정
+
+- WebSocket이 중간에 닫히는 경우를 추적할 수 있도록 백엔드 close reason/traceback 로그를 추가했습니다.
+- WebSocket이 예기치 않게 닫혀도 진행 중인 모니터링 세션을 저장하고, 재접속 시 캘리브레이션 기준값을 복원하도록 보강했습니다.
+- 프론트엔드에서 WebSocket close 이벤트를 감지해 재연결 및 `start_monitoring` 재개를 시도하도록 했습니다.
+- AI 프레임 처리 실패, 비정상 depth, NaN 값이 WebSocket 핸들러 전체를 종료시키지 않도록 방어했습니다.
+- WebSocket 송신 버퍼가 밀릴 때 프레임을 버려 브라우저/서버 과부하로 인한 끊김을 줄였습니다.
+- 자세 측정 중 로그인 화면으로 돌아가는 문제를 줄이기 위해 SQLite DB 기본 위치를 소스 폴더 밖(`~/.workwithme/posture.db`)으로 옮겼고, 기존 `posture.db`는 새 위치로 1회 복사하도록 했습니다.
+- 페이지가 새로고침되더라도 `localStorage.lofi_user_id`가 남아 있으면 로그인 오버레이를 자동으로 닫고 WebSocket을 다시 연결하도록 복구 로직을 추가했습니다.
+
+---
+
 ### 1. Python · numpy 버전 통일
 
 **배경**  

@@ -27,7 +27,20 @@
   <link rel="stylesheet" href="./css/style.css">
 </head>
 <body>
-  <div id="yt-player-host" style="position:absolute; width:120px; height:80px; overflow:hidden; opacity:0; pointer-events:none; z-index:-1;"></div>
+  <div id="youtube-player-shell" class="youtube-player-shell" role="dialog" aria-live="polite" aria-label="YouTube player">
+    <div class="youtube-player-head">
+      <span id="youtube-player-title">YouTube</span>
+      <button type="button" onclick="window.hideYouTubePlayer?.()" aria-label="YouTube player close">✕</button>
+    </div>
+    <div id="yt-player-host"></div>
+    <div id="youtube-player-assist" class="youtube-player-assist">
+      <p id="youtube-player-message"></p>
+      <div>
+        <button type="button" onclick="window.retryYouTubePlayback?.()">다시 시도</button>
+        <button type="button" onclick="window.openCurrentYouTube?.()">YouTube에서 열기</button>
+      </div>
+    </div>
+  </div>
 
 <div id="root">
   <canvas id="bg-canvas" style="position:absolute; inset:0; width:100%; height:100%; z-index:0; display:block;"></canvas>
@@ -70,7 +83,7 @@
           <div style="text-align:center; margin-top:15px; font-size:13px; color:#a0c0d8;">
             <span id="toggle-mode-text">
               계정이 없으신가요?
-              <a href="#" onclick="toggleSignupMode()" style="color:#1DB954; text-decoration:none; font-weight:bold;">회원가입</a>
+              <a href="#" onclick="toggleSignupMode()" style="color:#39c5bb; text-decoration:none; font-weight:bold;">회원가입</a>
             </span>
           </div>
       </div>
@@ -80,48 +93,45 @@
   </div>
 
   <div class="report-overlay" id="report-overlay" style="display: none;">
-    <div class="report-container" style="max-width: 900px; width: 95%; padding: 30px;">
-      <h2 class="report-title">오늘의 자세 리포트</h2>
-
-      <div class="report-content" style="display: flex; gap: 20px; align-items: stretch;">
-
-        <div style="flex: 1; display: flex; flex-direction: column; gap: 20px;">
-
-          <div style="display: flex; flex-direction: column; gap: 15px;">
-            <div class="report-box" style="padding: 15px;">
-              <h3 style="font-size: 14px; margin-bottom: 5px; color:#a0c0d8;">오늘 자세가 무너진 시간</h3>
-              <div class="report-value" id="report-total-time" style="font-size: 28px; color:#fff;">0<span style="font-size:16px">분</span></div>
-            </div>
-            <div style="display: flex; gap: 15px;">
-              <div class="report-box" style="flex: 1; padding: 15px;">
-                <h3 style="font-size: 13px; margin-bottom: 5px; color:#a0c0d8;">최장 지속 시간</h3>
-                <div class="report-value" id="report-max-time" style="font-size: 22px; color:#fca5a5;">0<span style="font-size:14px">분</span></div>
-              </div>
-              <div class="report-box" style="flex: 1; padding: 15px;">
-                <h3 style="font-size: 13px; margin-bottom: 5px; color:#a0c0d8;">거북목 비율</h3>
-                <div class="report-value" id="report-ratio" style="font-size: 22px; color:#fca5a5;">0<span style="font-size:14px">%</span></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="report-box" style="flex: 1; padding: 15px; display: flex; flex-direction: column; min-height: 250px;">
-            <h3 style="margin-bottom: 10px; color:#a0c0d8; font-size: 14px;">거북목 교정에 좋은 추천 스트레칭</h3>
-            <div style="flex: 1; width: 100%; background: #000; border-radius: 8px; overflow: hidden; border: 1px solid rgba(0, 180, 255, 0.2);">
-              <iframe width="100%" height="100%" src="https://www.youtube.com/embed/-nJkOEQ_HGE" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-            </div>
-          </div>
-
-        </div>
-
-        <div class="report-box" style="flex: 1; padding: 20px; display: flex; flex-direction: column;">
-          <h3 style="margin-bottom: 20px; color:#a0c0d8; text-align: center;">최근 7일 거북목 추이</h3>
-
-          <div class="chart-container" id="report-chart" style="flex: 1; display: flex; align-items: flex-end; gap: 15px; border-bottom: 1px solid rgba(0, 180, 255, 0.4); padding-bottom: 5px; position: relative;">
-          </div>
-        </div>
-
+    <div class="report-container">
+      <div class="report-head">
+        <p class="report-kicker">Daily posture note</p>
+        <h2 class="report-title">오늘의 자세 리포트</h2>
       </div>
-      <button class="report-btn" onclick="closeReportAndLogout()" style="margin-top: 25px; width: 100%;">리포트 닫기 및 최종 로그아웃</button>
+
+      <div class="report-content">
+        <section class="report-left">
+          <div class="report-metrics">
+            <div class="report-box report-box-primary">
+              <h3>오늘 자세가 무너진 시간</h3>
+              <div class="report-value" id="report-total-time">0<span>분</span></div>
+            </div>
+            <div class="report-box">
+              <h3>최장 지속 시간</h3>
+              <div class="report-value" id="report-max-time">0<span>분</span></div>
+            </div>
+            <div class="report-box">
+              <h3>거북목 비율</h3>
+              <div class="report-value" id="report-ratio">0<span>%</span></div>
+            </div>
+          </div>
+
+          <div class="report-box report-stretch">
+            <h3>거북목 교정에 좋은 추천 스트레칭</h3>
+            <div class="report-video">
+              <iframe width="100%" height="100%" src="https://www.youtube-nocookie.com/embed/-nJkOEQ_HGE" title="거북목 교정 스트레칭 영상" frameborder="0" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+              <a class="report-video-fallback" href="https://www.youtube.com/watch?v=-nJkOEQ_HGE" target="_blank" rel="noopener noreferrer">YouTube에서 열기</a>
+            </div>
+          </div>
+        </section>
+
+        <section class="report-box report-chart-card">
+          <h3>최근 7일 거북목 추이</h3>
+          <div class="chart-container" id="report-chart"></div>
+        </section>
+      </div>
+
+      <button class="report-btn" onclick="closeReportAndLogout()">리포트 닫기 및 최종 로그아웃</button>
     </div>
   </div>
 
@@ -183,6 +193,10 @@
         <div id="clock-time">00:00</div>
         <div id="clock-date">----.--.-- (-)</div>
       </div>
+      <div id="focus-chip">
+        <span></span>
+        Study room
+      </div>
     </div>
     <div style="flex:1"></div>
   </div>
@@ -192,7 +206,7 @@
     <div id="pomo-outer">
       <svg class="ring" viewBox="0 0 190 190">
         <circle cx="95" cy="95" r="88" fill="none" stroke="rgba(0,180,255,0.08)" stroke-width="4"/>
-        <circle id="pomo-ring" cx="95" cy="95" r="88" fill="none" stroke="#00bfff" stroke-width="4"
+        <circle id="pomo-ring" cx="95" cy="95" r="88" fill="none" stroke="#39c5bb" stroke-width="4"
           stroke-dasharray="552.9" stroke-dashoffset="0" stroke-linecap="round"
           transform="rotate(-90 95 95)" style="transition:stroke-dashoffset .8s linear;"/>
       </svg>
@@ -241,6 +255,7 @@
         <button class="ctrl-btn" onclick="prevTrack()">⏮</button>
         <button class="ctrl-btn active" id="play-btn" onclick="togglePlay()">⏸</button>
         <button class="ctrl-btn" onclick="nextTrack()">⏭</button>
+        <button class="ctrl-btn active" id="yt-video-toggle-btn" title="뮤직비디오 켜기/끄기" onclick="toggleYouTubeVideo()">MV</button>
         <button class="ctrl-btn" id="shuffle-btn" onclick="toggleShuffle()">⇄</button>
       </div>
     </div>
@@ -372,7 +387,7 @@
       </div>
       <div style="display: flex; gap: 6px;">
         <input type="text" id="main-yt-url" placeholder="YouTube URL..." style="flex:1; background:rgba(0,20,40,0.8); border:1px solid rgba(0,180,255,0.2); color:#e8e8f0; border-radius:5px; padding:6px 8px; font-size:10px; outline:none;">
-        <button onclick="if(window.addYouTubeToPlaylist) window.addYouTubeToPlaylist()" style="background:#1DB954; border:none; border-radius:5px; padding:6px 12px; color:#fff; font-size:10px; font-weight:bold; cursor:pointer;">담기</button>
+        <button onclick="if(window.addYouTubeToPlaylist) window.addYouTubeToPlaylist()" style="background:#39c5bb; border:none; border-radius:5px; padding:6px 12px; color:#102c2e; font-size:10px; font-weight:bold; cursor:pointer;">담기</button>
       </div>
     </div>
 
@@ -428,6 +443,8 @@
           <div class="debug-status-grid">
             <div><span>Tracking</span><strong id="debug-tracking-status" data-state="warn">idle</strong></div>
             <div><span>Posture</span><strong id="debug-posture-state" data-state="idle">NORMAL</strong></div>
+            <div><span>Turtle pose</span><strong id="debug-turtle-detected" data-state="idle">NO</strong></div>
+            <div><span>Calib samples</span><strong id="debug-calib-samples">0/30</strong></div>
             <div><span>Forced</span><strong id="debug-forced-state">OFF</strong></div>
             <div><span>WebSocket</span><strong id="debug-ws-state">closed</strong></div>
           </div>

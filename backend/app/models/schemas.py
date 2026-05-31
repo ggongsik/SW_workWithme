@@ -23,6 +23,13 @@ class CalibrationComplete(BaseModel):
     baseline_std: float
     threshold: float # baseline_delta_depth + 2*baseline_std
 
+class CalibrationProgress(BaseModel):
+    type: Literal["calibration_progress"] = "calibration_progress"
+    sample_count: int
+    required_samples: int
+    target_samples: int
+    enough_samples: bool
+
 class DetectionResult(BaseModel):
     type: Literal["detection_result"] = "detection_result"
     is_turtle: bool

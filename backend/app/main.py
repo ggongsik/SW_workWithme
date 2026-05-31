@@ -7,6 +7,7 @@ from app.websocket.handlers import handle_posture_connection, _ai_pipeline
 from app.websocket.manager import manager
 from app.models.db import init_db
 from app.api.report import router as report_router
+from app.auth.dev_auth import resolve_local_dev_uid
 from app.auth.firebase_auth import init_firebase, verify_token
 from app.services.user_service import get_or_create_user
 import asyncio
@@ -50,6 +51,7 @@ app.add_middleware(
         "http://localhost:8000",
         "http://127.0.0.1:8000",
     ],
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -66,7 +68,8 @@ async def health():
 @app.websocket("/ws/posture")
 async def posture_ws(websocket: WebSocket, token: str | None = None):
     # 1. 토큰 검증
-    firebase_uid = verify_token(token) if token else None
+    origin = websocket.headers.get("origin")
+    firebase_uid = resolve_local_dev_uid(token, origin) or (verify_token(token) if token else None)
     if firebase_uid is None:
         # 인증 실패 시 핸드셰이크 거부 (4401 = Unauthorized 커스텀 코드)
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid or missing token")

@@ -4,8 +4,8 @@
 // ============================================================================
 
 import { reloadPlaylistForUser } from './player.js';
-import { registerUser, loginUser, getUserToken} from './firebase.js';
-import { initWebSocket, sendCommand } from './network.js';
+import { registerUser, loginUser } from './firebase.js';
+import { getBackendApiBase, getBackendAuthToken, initWebSocket, sendCommand } from './network.js';
 import { openCalibration, closeCalibration, startCalibration, togglePostureCorrection, stopCamera } from './pose.js';
 let timeFmt = 12; // 시간 형식 (12시/24시)
 
@@ -96,6 +96,7 @@ function makeDraggable(el, handle) {
 window.addEventListener('DOMContentLoaded', () => {
   setInterval(updateClock, 1000);
   updateClock();
+  restoreSavedLogin();
 
   const pomoDrag = document.getElementById('pomo-drag');
   if(pomoDrag) makeDraggable(pomoDrag);
@@ -111,6 +112,17 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+function restoreSavedLogin() {
+  const savedUserId = localStorage.getItem('lofi_user_id');
+  if (!savedUserId) return;
+
+  reloadPlaylistForUser();
+  closeLoginOverlay();
+  initWebSocket().catch((error) => {
+    console.warn('Saved login WebSocket restore failed:', error);
+  });
+}
+
 
 // ============================================================================
 // 외부로 내보내는 기능들 (export)
@@ -125,6 +137,9 @@ export async function checkLogin() {
     localStorage.setItem('lofi_user_id', 'admin');
     reloadPlaylistForUser();
     closeLoginOverlay();
+    initWebSocket().catch((error) => {
+      console.warn('로컬 admin WebSocket 연결 대기:', error);
+    });
     return;
   }
 
@@ -137,7 +152,9 @@ export async function checkLogin() {
     console.log("로그인 성공!", userCredential.user.email);
     closeLoginOverlay();
 
-    await initWebSocket();
+    initWebSocket().catch((error) => {
+      console.warn('로그인 후 WebSocket 연결 대기:', error);
+    });
 
   } catch (error) {
     console.error("로그인 에러:", error);
@@ -148,6 +165,11 @@ export async function checkLogin() {
 export function logout() {
   const isConfirmed = confirm("정말 종료하시겠습니까? (오늘의 리포트가 생성됩니다)");
   if (!isConfirmed) return;
+
+  const stopRequested = sendCommand("stop_session");
+  if (!stopRequested) {
+    console.warn("stop_session command could not be sent; relying on disconnect auto-save.");
+  }
 
   if (typeof stopCamera === 'function') {
     stopCamera();
@@ -160,8 +182,6 @@ export function logout() {
   console.log("종료 처리 시작! 백엔드에 세션 종료 요청 및 리포트 강제 호출");
 
   // 1. 혹시 모를 열려있는 세션을 위해 종료 신호 전송
-  sendCommand("stop_session");
-
   setTimeout(() => {
     if (typeof fetchAndShowReport === 'function') {
       fetchAndShowReport();
@@ -181,10 +201,13 @@ export function logout() {
 
 export async function fetchAndShowReport() {
     try {
-        const token = await getUserToken();
+        const token = await getBackendAuthToken();
+        if (!token) {
+            throw new Error("백엔드 인증 토큰이 없습니다.");
+        }
 
         // ✨ 캡처본에 있는 정확한 API 주소와 헤더 사용
-        const response = await fetch(`http://localhost:8000/api/users/me/report`, {
+        const response = await fetch(`${getBackendApiBase()}/api/users/me/report`, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${token}`
@@ -243,15 +266,15 @@ export function showDailyReport(data) {
     if (chartContainer) {
         chartContainer.innerHTML = '';
 
-        // 💡 1. 그래프 배경에 깔끔한 가로 눈금선(Grid) 4줄 추가!
+        // 그래프 배경 눈금선
         for (let i = 1; i <= 4; i++) {
             const gridLine = document.createElement('div');
             gridLine.style.position = 'absolute';
-            gridLine.style.bottom = `${i * 25}%`; // 25%, 50%, 75%, 100% 높이에 배치
+            gridLine.style.bottom = `${i * 25}%`;
             gridLine.style.left = '0';
             gridLine.style.right = '0';
-            gridLine.style.borderBottom = '1px dashed rgba(255, 255, 255, 0.15)'; // 반투명 점선
-            gridLine.style.zIndex = '0'; // 막대기 뒤로 숨기기
+            gridLine.style.borderBottom = '1px dashed rgba(255, 229, 205, 0.18)';
+            gridLine.style.zIndex = '0';
             chartContainer.appendChild(gridLine);
         }
 
@@ -275,27 +298,25 @@ export function showDailyReport(data) {
 
             // 💡 2. [핵심] 텍스트를 "분"과 "(%)" 두 줄로 표시!
             const valueLabel = document.createElement('div');
+            valueLabel.className = 'report-chart-value';
             valueLabel.style.fontSize = '12px';
             valueLabel.style.fontWeight = 'bold';
-            valueLabel.style.color = '#1DB954'; 
             valueLabel.style.marginBottom = '6px';
-            valueLabel.style.textAlign = 'center'; 
+            valueLabel.style.textAlign = 'center';
             valueLabel.style.lineHeight = '1.3'; // 줄간격
             // 분(min)을 크게, 퍼센트(%)는 약간 작고 흐리게 표시
-            valueLabel.innerHTML = `${durationMin}분<br><span style="font-size:10px; color:#888;">(${Math.round(heightPct)}%)</span>`; 
+            valueLabel.innerHTML = `${durationMin}분<br><span>(${Math.round(heightPct)}%)</span>`;
 
             // 창이 커진 만큼 막대기도 30px로 조금 더 뚱뚱하게!
             const bar = document.createElement('div');
-            bar.style.width = '30px';
-            bar.style.backgroundColor = '#1DB954';
-            bar.style.borderRadius = '4px 4px 0 0';
+            bar.className = 'report-chart-bar';
             bar.style.height = `${targetHeight}px`;
             bar.style.minHeight = `${targetHeight}px`;
             bar.title = `${durationMin}분 (${heightPct.toFixed(1)}%)`;
 
             const label = document.createElement('span');
             label.style.fontSize = '13px';
-            label.style.color = '#a0c0d8';
+            label.style.color = 'rgba(217, 200, 188, 0.86)';
             label.style.marginTop = '8px';
             label.innerText = dateStr;
 
@@ -540,14 +561,14 @@ export function toggleSignupMode() {
     pwConfirm.style.display = "block";
     submitBtn.textContent = "가입하기";
     submitBtn.onclick = handleSignup; // 버튼 누르면 회원가입 함수 실행
-    toggleText.innerHTML = `이미 계정이 있으신가요? <a href="#" onclick="toggleSignupMode()" style="color:#1DB954; text-decoration:none; font-weight:bold;">로그인</a>`;
+    toggleText.innerHTML = `이미 계정이 있으신가요? <a href="#" onclick="toggleSignupMode()" style="color:#39c5bb; text-decoration:none; font-weight:bold;">로그인</a>`;
   } else {
     // 로그인 모드로 변신
     title.textContent = "로그인";
     pwConfirm.style.display = "none";
     submitBtn.textContent = "입장하기";
     submitBtn.onclick = checkLogin; // 버튼 누르면 로그인 함수 실행
-    toggleText.innerHTML = `계정이 없으신가요? <a href="#" onclick="toggleSignupMode()" style="color:#1DB954; text-decoration:none; font-weight:bold;">회원가입</a>`;
+    toggleText.innerHTML = `계정이 없으신가요? <a href="#" onclick="toggleSignupMode()" style="color:#39c5bb; text-decoration:none; font-weight:bold;">회원가입</a>`;
   }
 }
 

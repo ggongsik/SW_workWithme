@@ -43,15 +43,23 @@ class SessionState:
 
     posture_events: List[PostureEvent] = field(default_factory=list)
 
+@dataclass
+class CalibrationSnapshot:
+    baseline_delta_depth: float
+    baseline_std: float
+    threshold: float
+
 # 모든 WebSocket 연결을 추적하는 중앙 매니저.
 class ConnectionManager:
     def __init__(self):
         self.sessions: Dict[str, SessionState] = {}
+        self.calibration_snapshots: Dict[str, CalibrationSnapshot] = {}
 
     async def connect(self, websocket: WebSocket, user_id: Optional[str] = None) -> SessionState:
         await websocket.accept()
         session_id = str(uuid.uuid4())
         state = SessionState(session_id = session_id, websocket = websocket, user_id = user_id)
+        self.restore_calibration(state)
         self.sessions[session_id] = state
         return state
 
@@ -60,6 +68,41 @@ class ConnectionManager:
 
     def get(self, session_id: str) -> Optional[SessionState]:
         return self.sessions.get(session_id)
+
+    def remember_calibration(self, state: SessionState) -> None:
+        if (
+            state.user_id is None
+            or state.baseline_delta_depth is None
+            or state.baseline_std is None
+            or state.threshold is None
+        ):
+            return
+
+        self.calibration_snapshots[state.user_id] = CalibrationSnapshot(
+            baseline_delta_depth=state.baseline_delta_depth,
+            baseline_std=state.baseline_std,
+            threshold=state.threshold,
+        )
+
+    def forget_calibration(self, user_id: Optional[str]) -> None:
+        if user_id is None:
+            return
+        self.calibration_snapshots.pop(user_id, None)
+
+    def restore_calibration(self, state: SessionState) -> bool:
+        if state.user_id is None:
+            return False
+
+        snapshot = self.calibration_snapshots.get(state.user_id)
+        if snapshot is None:
+            return False
+
+        state.mode = "monitoring"
+        state.baseline_delta_depth = snapshot.baseline_delta_depth
+        state.baseline_std = snapshot.baseline_std
+        state.threshold = snapshot.threshold
+        state.ema_value = snapshot.baseline_delta_depth
+        return True
 
     @property # a = ConnectionManager(); a.active_count; -> 메서드를 변수처럼 쓰도록
     def active_count(self) -> int:

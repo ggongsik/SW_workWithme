@@ -5,6 +5,7 @@ import sys
 import time
 import json
 import io
+import traceback
 
 import numpy as np
 from PIL import Image
@@ -21,6 +22,7 @@ from app.models.schemas import (
     SessionStarted,
     ErrorMessage,
     CalibrationComplete,
+    CalibrationProgress,
     DetectionResult as DetectionResultMsg,
     SessionEnded
 )
@@ -78,6 +80,19 @@ async def handle_posture_connection(websocket: WebSocket, user_id: str | None = 
         session_id = state.session_id,
         timestamp = time.time()
     ))
+    if (
+        state.mode == "monitoring"
+        and state.baseline_delta_depth is not None
+        and state.baseline_std is not None
+        and state.threshold is not None
+    ):
+        await send_json(websocket, CalibrationComplete(
+            baseline_delta_depth = round(state.baseline_delta_depth, 4),
+            baseline_std = round(state.baseline_std, 4),
+            threshold = round(state.threshold, 4)
+        ))
+
+    close_reason = "unknown"
 
     try:
         # 3. 메시지 수신 루프
@@ -85,20 +100,48 @@ async def handle_posture_connection(websocket: WebSocket, user_id: str | None = 
             message = await websocket.receive() # receive()에서 양보하는 동안 다른 사용자의 WebSocket 연결도 동시에 처리
 
             if message["type"] == "websocket.disconnect":
+                close_reason = "client_disconnect"
                 break
             
             # JSON 인지 binary인지 구분
-            if "text" in message:
-                await _handle_text_message(state, message["text"]) # async 함수는 무조건 await로 호출
-            elif "bytes" in message:
-                # 프레임 데이터 (Step 7에서 구현)
-                await _handle_frame(state, message["bytes"])
+            try:
+                if "text" in message:
+                    await _handle_text_message(state, message["text"]) # async 함수는 무조건 await로 호출
+                elif "bytes" in message:
+                    # 프레임 데이터 (Step 7에서 구현)
+                    await _handle_frame(state, message["bytes"])
+            except WebSocketDisconnect:
+                close_reason = "client_disconnect_during_send"
+                raise
+            except Exception as e:
+                close_reason = f"message_error:{type(e).__name__}"
+                print(f"[{state.session_id[:8]}] websocket message error: {e}")
+                traceback.print_exc()
+                try:
+                    await send_error(
+                        state.websocket,
+                        code = "PROCESSING_FAILED",
+                        message = "프레임 처리 중 오류가 발생했습니다. 연결은 유지합니다."
+                    )
+                except Exception as send_error_exc:
+                    close_reason = f"error_response_failed:{type(send_error_exc).__name__}"
+                    print(f"[{state.session_id[:8]}] failed to send error response: {send_error_exc}")
+                    break
     
-    except WebSocketDisconnect:
-        pass  # 정상적인 연결 끊김은 무시
+    except WebSocketDisconnect as e:
+        close_reason = f"websocket_disconnect:{getattr(e, 'code', None)}"
+    except Exception as e:
+        close_reason = f"handler_error:{type(e).__name__}"
+        print(f"[{state.session_id[:8]}] websocket handler error: {e}")
+        traceback.print_exc()
     
     finally:
+        print(
+            f"[{state.session_id[:8]}] websocket closing reason={close_reason}, "
+            f"mode={state.mode}, monitoring_started={state.monitoring_started_at is not None}"
+        )
         # 4. 연결 정리 (예외 발생해도 반드시 실행)
+        await _save_session_on_disconnect(state)
         manager.disconnect(state.session_id)
         # session_ended는 이미 연결이 끊긴 뒤라 못 보냄.
         # 정상 종료는 stop_session 메시지로 처리
@@ -171,10 +214,14 @@ async def _stop_calibration(state: SessionState) -> None:
 
     # 샘플 부족 처리: 현재는 A안 (에러 + idle 복귀). 추후 상의 후 변경 가능.
     if result is None:
+        sample_count = len(state.calibration_samples)
         await send_error(
             state.websocket,
             code = "INSUFFICIENT_SAMPLES",
-            message = f"수집된 샘플이 부족합니다 (최소 {calibration.MIN_SAMPLES_REQUIRED}개 필요)"
+            message = (
+                f"수집된 샘플이 부족합니다 "
+                f"({sample_count}/{calibration.MIN_SAMPLES_REQUIRED}, 목표 {calibration.TARGET_SAMPLES}개)"
+            )
         )
         state.mode = "idle"
         return
@@ -184,6 +231,7 @@ async def _stop_calibration(state: SessionState) -> None:
         baseline_std = round(result.std, 4),
         threshold = round(result.threshold, 4)
     ))
+    manager.remember_calibration(state)
     # 캘리브레이션 완료 시점을 첫 이벤트로 기록 (정상 상태 시작점)
     state.posture_events.append(PostureEvent(
         timestamp=time.time(),
@@ -232,27 +280,69 @@ async def _handle_frame(state: SessionState, frame_bytes: bytes) -> None:
     # 2. AI 파이프라인 호출 ← 여기가 가장 중요!
     # 동기 함수를 별도 쓰레드에서 실행하여 sleep 부분에서 cpu를 이벤트 루프에 양보
     loop = asyncio.get_running_loop() # 이벤트 루프 객체
-    result = await loop.run_in_executor(
-        None,
-        _ai_pipeline.process_frame,
-        frame
-    )
+    try:
+        result = await loop.run_in_executor(
+            None,
+            _ai_pipeline.process_frame,
+            frame
+        )
+    except Exception as e:
+        print(f"[AI] process_frame failed: {e}")
+        await send_error(
+            state.websocket,
+            code = "AI_PROCESS_FAILED",
+            message = "AI 프레임 분석에 실패했습니다. 다음 프레임을 계속 처리합니다."
+        )
+        return
+
+    if not isinstance(result, dict):
+        await send_error(
+            state.websocket,
+            code = "AI_INVALID_RESULT",
+            message = "AI 프레임 분석 결과가 올바르지 않습니다."
+        )
+        return
+
+    detected = bool(result.get("detected", False))
+    delta_depth = result.get("delta_depth")
+    try:
+        delta_depth_log = float(delta_depth)
+    except (TypeError, ValueError):
+        delta_depth_log = 0.0
 
     # [임시 진단] AI 처리 시간 / 감지 결과 로그
     print(f"[AI] processing_time={result.get('processing_time_ms', 0):.0f}ms, "
-          f"detected={result['detected']}, delta={result.get('delta_depth', 0):.4f}, "
+          f"detected={detected}, delta={delta_depth_log:.4f}, "
           f"mode={state.mode}")
 
-    if not result["detected"]:
+    if not detected:
         """
         사용자가 자리를 비울 때
         """
         return
 
+    try:
+        delta_depth = float(delta_depth)
+    except (TypeError, ValueError):
+        await send_error(
+            state.websocket,
+            code = "INVALID_DEPTH",
+            message = "AI가 유효하지 않은 depth 값을 반환했습니다."
+        )
+        return
+
+    if not np.isfinite(delta_depth):
+        await send_error(
+            state.websocket,
+            code = "INVALID_DEPTH",
+            message = "AI가 유효하지 않은 depth 값을 반환했습니다."
+        )
+        return
+
     if state.mode == "calibrating":
-        await _process_calibration_frame(state, result['delta_depth'])
+        await _process_calibration_frame(state, delta_depth)
     elif state.mode == "monitoring":
-        await _process_monitoring_frame(state, result["delta_depth"])
+        await _process_monitoring_frame(state, delta_depth)
         
 
 async def _process_calibration_frame(state: SessionState, delta_depth: float) -> None:
@@ -263,6 +353,13 @@ async def _process_calibration_frame(state: SessionState, delta_depth: float) ->
     보내면 그때 finalize_calibration이 호출됨 (_stop_calibration 참조).
     """
     calibration.add_sample(state, delta_depth)
+    sample_count = len(state.calibration_samples)
+    await send_json(state.websocket, CalibrationProgress(
+        sample_count=sample_count,
+        required_samples=calibration.MIN_SAMPLES_REQUIRED,
+        target_samples=calibration.TARGET_SAMPLES,
+        enough_samples=sample_count >= calibration.MIN_SAMPLES_REQUIRED,
+    ))
 
 async def _process_monitoring_frame(state: SessionState, delta_depth: float) -> None:
     """모니터링 모드의 프레임 처리"""
@@ -292,6 +389,32 @@ async def _process_monitoring_frame(state: SessionState, delta_depth: float) -> 
         print(f"[{state.session_id[:8]}] {transition} "
               f"(ema={result.delta_depth_smoothed:.4f})")
 
+async def _save_session_on_disconnect(state: SessionState) -> None:
+    if state.mode != "monitoring" or state.monitoring_started_at is None:
+        return
+
+    session_ended_at = time.time()
+    monitoring_duration = session_ended_at - state.monitoring_started_at
+    if monitoring_duration <= 0:
+        state.monitoring_started_at = None
+        return
+
+    if state.is_turtle_active:
+        state.posture_events.append(PostureEvent(
+            timestamp=session_ended_at,
+            is_turtle=False,
+            delta_depth_smoothed=state.ema_value or 0.0
+        ))
+
+    try:
+        await save_session_and_accumulate(state, session_ended_at, monitoring_duration)
+        print(f"[{state.session_id[:8]}] session saved after websocket disconnect "
+              f"({monitoring_duration:.1f}s)")
+    except Exception as e:
+        print(f"[{state.session_id[:8]}] disconnect save failed: {e}")
+    finally:
+        state.monitoring_started_at = None
+
 async def _stop_session(state: SessionState) -> None:
     """세션 종료 처리: 모니터링 시간 계산 + 저장(DailyStats 누적) + ack."""
     session_ended_at = time.time()
@@ -315,6 +438,7 @@ async def _stop_session(state: SessionState) -> None:
     if state.mode != "monitoring" or monitoring_duration <= 0:
         await send_json(state.websocket, SessionEnded(session_id = state.session_id))
         state.monitoring_started_at = None
+        manager.forget_calibration(state.user_id)
         return
 
     try:
@@ -328,6 +452,8 @@ async def _stop_session(state: SessionState) -> None:
         )
         return
 
+    state.monitoring_started_at = None
+    manager.forget_calibration(state.user_id)
     await send_json(state.websocket, SessionEnded(session_id = state.session_id))
     state.monitoring_started_at = None  # 다음 모니터링(재캘리브레이션 등) 대비 리셋
     print(f"[{state.session_id[:8]}] 세션 저장 완료 (모니터링 {monitoring_duration:.1f}초)")

@@ -8,18 +8,48 @@ import { fetchAndShowReport, setUIGlow } from './ui.js';
 import { change3DPose } from './character.js';
 import {
   getForcedDebugState,
+  setDebugCalibrationProgress,
   noteDebugPoseResult,
   noteDebugWebSocket,
   setDebugPostureState,
+  setDebugTurtleDetection,
   setDebugWebSocketState,
 } from './debug.js';
 
 let ws = null;
+let wsOpenPromise = null;
+const LOCAL_DEV_AUTH_TOKEN = 'workwithme-local-admin';
+const MAX_WS_BUFFERED_BYTES = 512 * 1024;
 
 // 거북목 지속 시간 추적 변수
 let turtleStartTime = null;
 let currentPoseState = 'idle';
 export let isCalibrated = false;
+
+function isLocalHost() {
+  return ['localhost', '127.0.0.1', '::1', ''].includes(window.location.hostname);
+}
+
+export async function getBackendAuthToken() {
+  const token = await getUserToken();
+  if (token) return token;
+
+  if (isLocalHost() && localStorage.getItem('lofi_user_id') === 'admin') {
+    return LOCAL_DEV_AUTH_TOKEN;
+  }
+
+  return null;
+}
+
+export function getBackendApiBase() {
+  const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
+  const host = window.POSTURE_API_HOST || `${window.location.hostname || 'localhost'}:8000`;
+  return `${protocol}://${host}`;
+}
+
+function emitPostureEvent(name, detail) {
+  window.dispatchEvent(new CustomEvent(`posture:${name}`, { detail }));
+}
 
 // 상태 전환 임계값 (분 단위)
 // 개발 중에 테스트할 때는 이 값을 (1/60), (5/60) 처럼 초 단위로 바꿔서 테스트
@@ -27,37 +57,67 @@ const WARN_THRESHOLD_MIN = 5/60; // 5초
 const ALERT_THRESHOLD_MIN = 10/60; // 10초
 
 export async function initWebSocket() {
-  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
     return ws;
   }
+  if (ws && ws.readyState === WebSocket.CONNECTING && wsOpenPromise) {
+    return wsOpenPromise;
+  }
 
-  const token = await getUserToken();
+  const token = await getBackendAuthToken();
+  if (!token) {
+    setDebugWebSocketState('auth_required');
+    noteDebugWebSocket('ws-error', 'auth token missing');
+    throw new Error('Firebase 로그인 또는 로컬 admin 개발 인증이 필요합니다.');
+  }
+
   const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
   const host = window.POSTURE_WS_HOST || `${window.location.hostname || 'localhost'}:8000`;
-  let wsURL = `${protocol}://${host}/ws/posture`;
-  if (token) {
-      wsURL += `?token=${encodeURIComponent(token)}`;
-  }
+  const wsURL = `${protocol}://${host}/ws/posture?token=${encodeURIComponent(token)}`;
   ws = new WebSocket(wsURL);
   ws.binaryType = 'arraybuffer';
   setDebugWebSocketState('connecting');
   noteDebugWebSocket('ws-out', 'connect', { url: wsURL.replace(/token=[^&]+/, 'token=***') });
 
-  ws.onopen = () => {
-    console.log('WebSocket Connected');
-    setDebugWebSocketState('open');
-  };
-  ws.onerror = (error) => {
-    console.error('WebSocket Error:', error);
-    setDebugWebSocketState('error');
-    noteDebugWebSocket('ws-error', 'socket error', { type: error.type });
-  };
-  ws.onclose = () => {
-    ws = null;
-    turtleStartTime = null;
-    currentPoseState = 'idle';
-    setDebugWebSocketState('closed');
-  };
+  wsOpenPromise = new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      setDebugWebSocketState('timeout');
+      noteDebugWebSocket('ws-error', 'connection timeout');
+      reject(new Error('WebSocket 연결 시간이 초과되었습니다.'));
+      if (ws && ws.readyState === WebSocket.CONNECTING) ws.close();
+      wsOpenPromise = null;
+    }, 7000);
+
+    ws.onopen = () => {
+      window.clearTimeout(timeoutId);
+      console.log('WebSocket Connected');
+      setDebugWebSocketState('open');
+      emitPostureEvent('websocket-open', { state: 'open' });
+      wsOpenPromise = null;
+      resolve(ws);
+    };
+    ws.onerror = (error) => {
+      window.clearTimeout(timeoutId);
+      console.error('WebSocket Error:', error);
+      setDebugWebSocketState('error');
+      noteDebugWebSocket('ws-error', 'socket error', { type: error.type });
+      wsOpenPromise = null;
+      reject(new Error('WebSocket 연결에 실패했습니다.'));
+    };
+    ws.onclose = (event) => {
+      window.clearTimeout(timeoutId);
+      if (wsOpenPromise) {
+        reject(new Error(`WebSocket 연결이 닫혔습니다. code=${event.code || 'unknown'}`));
+      }
+      ws = null;
+      wsOpenPromise = null;
+      turtleStartTime = null;
+      currentPoseState = 'idle';
+      setDebugWebSocketState('closed');
+      noteDebugWebSocket('ws-in', 'closed', { code: event.code, reason: event.reason });
+      emitPostureEvent('websocket-closed', { code: event.code, reason: event.reason });
+    };
+  });
 
   ws.onmessage = (event) => {
     try {
@@ -71,6 +131,7 @@ export async function initWebSocket() {
 
       // 백엔드에서 보낸 DetectionResultMsg 처리
       if (data && data.hasOwnProperty('is_turtle')) {
+        setDebugTurtleDetection(data.is_turtle, data);
 
         if (data.is_turtle === false) {
           // 1. 정상 자세로 돌아온 경우
@@ -98,10 +159,21 @@ export async function initWebSocket() {
           }
         }
       }
+      else if (data && data.type === 'calibration_progress') {
+        setDebugCalibrationProgress(data);
+        emitPostureEvent('calibration-progress', data);
+      }
       else if (data && data.hasOwnProperty('baseline_delta_depth')) {
         isCalibrated = true;
+        noteDebugWebSocket('ws-in', 'calibration_complete', data);
+        emitPostureEvent('calibration-complete', data);
       }
-      else if (data && (data.type === 'SessionEnded' || data.hasOwnProperty('report_id'))) {
+      else if (data && data.type === 'error') {
+        console.warn("서버 오류 응답:", data);
+        noteDebugWebSocket('ws-error', data.code || 'server_error', data);
+        emitPostureEvent('server-error', data);
+      }
+      else if (data && (data.type === 'session_ended' || data.type === 'SessionEnded' || data.hasOwnProperty('report_id'))) {
         console.log(" 세션 종료 및 리포트 ID 수신:", data.report_id);
 
         isCalibrated = false;
@@ -117,6 +189,8 @@ export async function initWebSocket() {
       console.error("서버 응답 파싱 실패:", err);
     }
   };
+
+  return wsOpenPromise;
 }
 
 // 중복 렌더링을 막기 위한 상태 변경 헬퍼 함수
@@ -142,6 +216,12 @@ export function isWebSocketOpen() {
 
 export function sendPoseData(buffer) {
   if (ws && ws.readyState === WebSocket.OPEN) {
+    if (ws.bufferedAmount > MAX_WS_BUFFERED_BYTES) {
+      noteDebugWebSocket('ws-drop', 'frame skipped: websocket backpressure', {
+        buffered_kb: Math.round(ws.bufferedAmount / 1024),
+      });
+      return false;
+    }
     ws.send(buffer);
     return true;
   }

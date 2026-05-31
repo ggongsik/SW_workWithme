@@ -9,6 +9,10 @@ const state = {
   forcedState: null,
   postureState: 'idle',
   rawPosture: 'idle',
+  turtleDetected: null,
+  calibrationSamples: 0,
+  calibrationRequired: 10,
+  calibrationTarget: 30,
   tracking: false,
   trackingStatus: 'idle',
   lastFrameAt: 0,
@@ -64,6 +68,8 @@ function refreshSummary() {
   const posture = $('debug-posture-state');
   const forced = $('debug-forced-state');
   const ws = $('debug-ws-state');
+  const turtle = $('debug-turtle-detected');
+  const calib = $('debug-calib-samples');
   const perf = $('debug-performance');
 
   if (status) {
@@ -77,6 +83,19 @@ function refreshSummary() {
   if (forced) {
     forced.textContent = state.forcedState ? stateLabel(state.forcedState) : 'OFF';
     forced.dataset.state = stateClass(state.forcedState);
+  }
+  if (turtle) {
+    if (state.turtleDetected == null) {
+      turtle.textContent = 'WAIT';
+      turtle.dataset.state = 'warn';
+    } else {
+      turtle.textContent = state.turtleDetected ? 'YES' : 'NO';
+      turtle.dataset.state = state.turtleDetected ? 'alert' : 'idle';
+    }
+  }
+  if (calib) {
+    calib.textContent = `${state.calibrationSamples}/${state.calibrationTarget}`;
+    calib.dataset.state = state.calibrationSamples >= state.calibrationRequired ? 'idle' : 'warn';
   }
   if (ws) ws.textContent = state.wsState;
   if (perf) {
@@ -181,6 +200,20 @@ export function setDebugPostureState(nextState, detail = {}) {
   if (!state.forcedState) applyPoseState(nextState, 'auto');
   else refreshSummary();
   pushLog('posture', `server judged ${stateLabel(nextState)}`, detail);
+}
+
+export function setDebugTurtleDetection(isTurtle, detail = {}) {
+  state.turtleDetected = !!isTurtle;
+  pushLog('turtle', state.turtleDetected ? 'detected' : 'not detected', detail);
+  refreshSummary();
+}
+
+export function setDebugCalibrationProgress(detail = {}) {
+  state.calibrationSamples = Number(detail.sample_count || 0);
+  state.calibrationRequired = Number(detail.required_samples || state.calibrationRequired || 10);
+  state.calibrationTarget = Number(detail.target_samples || state.calibrationTarget || 30);
+  pushLog('calibration', `${state.calibrationSamples}/${state.calibrationTarget}`, detail);
+  refreshSummary();
 }
 
 export function setDebugTrackingStatus(status, detail = {}) {

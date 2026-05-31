@@ -10,8 +10,10 @@ from app.websocket.manager import SessionState
 
 
 # ===== 상수 =====
-# 프론트가 10초 타이머를 관리. 백엔드는 시간 추적 안 함.
-MIN_SAMPLES_REQUIRED = 30  # 최소 30프레임 (3FPS 기준 10초), 얼마나 받을지는 상의 필요
+# 30프레임은 안정적인 기준값을 위한 목표치다.
+# 실제 웹 세션에서는 AI 처리 지연으로 10초 안에 30개를 못 채울 수 있어 임시 최소치를 낮춘다.
+TARGET_SAMPLES = 30
+MIN_SAMPLES_REQUIRED = 10
 THRESHOLD_SIGMA = 2.0
 
 # ===== 캘리브레이션 결과 =====
