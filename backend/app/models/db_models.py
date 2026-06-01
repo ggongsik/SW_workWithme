@@ -12,7 +12,7 @@ SQLAlchemy 테이블 모델 정의.
 import time
 import uuid
 from typing import Optional, List
-from sqlalchemy import Float, String, Integer, ForeignKey, UniqueConstraint
+from sqlalchemy import Float, String, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 def make_uuid() -> str:
@@ -40,15 +40,6 @@ class UserRecord(Base):
         back_populates="user",
         cascade="all, delete-orphan"
     )
-    posture_samples: Mapped[List["PostureSampleRecord"]] = relationship(
-        back_populates="user",
-        cascade="all, delete-orphan"
-    )
-    model: Mapped[Optional["UserModelRecord"]] = relationship(
-        back_populates="user",
-        cascade="all, delete-orphan",
-        uselist=False  # 1:1
-    )
     daily_stats: Mapped[List["DailyStatsRecord"]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan"
@@ -56,7 +47,7 @@ class UserRecord(Base):
 
 
 class SessionRecord(Base):
-    """세션 메타데이터. IF 학습 샘플(PostureSampleRecord)의 부모."""
+    """세션 메타데이터 (연결 시작/종료, 캘리브레이션 기준값)."""
     __tablename__ = "sessions"
 
     id : Mapped[str] = mapped_column(String, primary_key = True, default = make_uuid)
@@ -70,76 +61,13 @@ class SessionRecord(Base):
     ended_at : Mapped[float] = mapped_column(Float, nullable = False)    # 세션(연결) 종료
     duration_sec : Mapped[float] = mapped_column(Float, nullable = False, default = 0.0)
 
-    # delta_depth (코-어깨 깊이 차) 캘리브레이션 값 (IF z-score 기준)
+    # delta_depth (코-어깨 깊이 차) 캘리브레이션 기준값 (참고·표시용)
+    # 실제 거북목 판정은 메모리상의 개인화 IF 모델이 담당 (모델은 DB 저장 안 함)
     baseline : Mapped[Optional[float]] = mapped_column(Float, nullable = True)
     baseline_std : Mapped[Optional[float]] = mapped_column(Float, nullable = True)
     threshold : Mapped[Optional[float]] = mapped_column(Float, nullable = True)
 
     user: Mapped["UserRecord"] = relationship(back_populates="sessions")
-
-    posture_samples: Mapped[List["PostureSampleRecord"]] = relationship(
-        back_populates="session",
-        cascade="all, delete-orphan"
-    )
-
-class PostureSampleRecord(Base):
-    """
-    Isolation Forest 학습용 정상 자세 샘플.
-
-    monitoring 모드에서 거북목이 아닌 프레임만 누적된다.
-    raw 값과 z-score 값을 함께 저장 (디버깅·재학습 정책 변경 대비).
-    """
-    __tablename__ = "posture_samples"
-
-    id : Mapped[int] = mapped_column(Integer, primary_key = True, autoincrement = True)
-    user_id : Mapped[str] = mapped_column(
-        String,
-        ForeignKey("users.id", ondelete = "CASCADE"),
-        nullable = False,
-        index = True
-    )
-    session_id : Mapped[str] = mapped_column(
-        String,
-        ForeignKey("sessions.id", ondelete = "CASCADE"),
-        nullable = False,
-        index = True
-    )
-    timestamp : Mapped[float] = mapped_column(Float, nullable = False)
-
-    # raw 측정값 + z-score (해당 세션의 baseline/std 기준으로 정규화)
-    delta_depth_raw : Mapped[float] = mapped_column(Float, nullable = False)
-    delta_depth_zscore : Mapped[float] = mapped_column(Float, nullable = False)
-
-    user: Mapped["UserRecord"] = relationship(back_populates="posture_samples")
-    session: Mapped["SessionRecord"] = relationship(back_populates="posture_samples")
-
-
-class UserModelRecord(Base):
-    """
-    사용자별 Isolation Forest 모델 (1:1, A안: 1행 덮어쓰기 정책).
-
-    학습 트리거:
-    - 누적 샘플 수가 MIN_SAMPLES_FOR_IF (TBD, AI 파트와 조율 중) 이상일 때 최초 학습
-    - 이후 monitoring 세션 종료 시마다 재학습 (sklearn IsolationForest는 incremental
-      learning을 지원하지 않으므로 매번 새 모델 객체 생성 후 덮어쓰기)
-
-    TODO: 학습 트리거 로직은 AI 파트 결정 후 추가 예정.
-    """
-    __tablename__ = "user_models"
-
-    id : Mapped[str] = mapped_column(String, primary_key = True, default = make_uuid)
-    user_id : Mapped[str] = mapped_column(
-        String,
-        ForeignKey("users.id", ondelete = "CASCADE"),
-        nullable = False,
-        unique = True,  # 사용자당 1행 (1:1)
-        index = True
-    )
-    model_path : Mapped[str] = mapped_column(String, nullable = False)  # 파일 시스템 경로 (.pkl)
-    trained_at : Mapped[float] = mapped_column(Float, nullable = False)
-    sample_count : Mapped[int] = mapped_column(Integer, nullable = False)  # 학습에 사용된 샘플 수
-
-    user: Mapped["UserRecord"] = relationship(back_populates="model")
 
 
 class DailyStatsRecord(Base):
