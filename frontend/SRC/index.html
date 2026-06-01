@@ -47,7 +47,7 @@
 
   <!-- 로그인 오버레이 -->
   <div id="login-overlay">
-    <div class="login-top-title">studywith<span>자세교정</span></div>
+    <div class="login-top-title">STUDY WITH <span>자세교정</span></div>
 
     <div class="intro-container">
 
@@ -201,113 +201,103 @@
     <div style="flex:1"></div>
   </div>
 
-  <aside id="phone-controller" class="phone-controller" aria-label="WorkWithMe glass controller">
-    <div class="phone-rim"></div>
-    <div class="phone-statusbar">
-      <div>
-        <strong id="phone-time">00:00</strong>
-        <span id="phone-date">study room</span>
-      </div>
-      <div class="phone-island">
-        <span id="phone-ws-dot" class="phone-dot" data-state="closed"></span>
-        <span id="phone-ws-label">closed</span>
-      </div>
-      <button class="phone-visibility-btn" type="button" onclick="hideUI()" title="UI 숨기기" aria-label="UI 숨기기">
-        <svg viewBox="0 0 18 18" aria-hidden="true">
-          <path d="M2 9s2.5-4 7-4 7 4 7 4-2.5 4-7 4-7-4-7-4Z"/>
-          <circle cx="9" cy="9" r="2"/>
-        </svg>
-      </button>
-      <button class="phone-exit-btn" type="button" onclick="logout()" title="결과 정리 및 로그아웃" aria-label="결과 정리 및 로그아웃">
-        <svg viewBox="0 0 18 18" aria-hidden="true">
-          <path d="M7 3H4.5A1.5 1.5 0 0 0 3 4.5v9A1.5 1.5 0 0 0 4.5 15H7"/>
-          <path d="M10.5 5.5 14 9l-3.5 3.5"/>
-          <path d="M14 9H7"/>
-        </svg>
-      </button>
+  <div class="phone-controller" id="phone-controller">
+  <div class="phone-statusbar">
+    <div>
+      <strong id="phone-time">11:43 PM</strong>
+      <span id="phone-date">06.01 월</span>
     </div>
-
-    <button id="phone-posture-widget" class="phone-widget posture-core" type="button" onclick="openCalibration()">
-      <span class="phone-widget-kicker">Posture Core</span>
-      <span id="phone-posture-state" class="posture-state-text">측정 전</span>
-      <span class="posture-orbit" aria-hidden="true">
-        <span class="posture-orbit-ring"></span>
-        <span class="posture-orbit-core"></span>
-      </span>
-      <span class="posture-meta-row">
-        <span id="phone-tracking-status">idle</span>
-        <span id="phone-turtle-chip">WAIT</span>
-      </span>
-      <span class="phone-calib-track">
-        <span id="phone-calib-bar"></span>
-      </span>
-      <span class="posture-sample-row">
-        <span>기준 자세</span>
-        <strong id="phone-calib-samples">0/30</strong>
-      </span>
-      <span class="phone-primary-action">자세 측정 열기</span>
+    <div class="phone-island">
+      <div class="phone-dot" id="ws-dot" data-state="offline"></div>
+      <span id="ws-status-text">OFFLINE</span>
+    </div>
+    <button class="phone-icon-btn" onclick="hideUI()" title="UI 숨기기">
+      <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
     </button>
+    <button class="phone-icon-btn" onclick="togglePiP()" title="미니 플레이어">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><rect x="12" y="12" width="7" height="5" rx="1" ry="1"></rect></svg>
+    </button>
+    <button class="phone-icon-btn exit-btn" onclick="logout()" title="종료">
+      <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+    </button>
+  </div>
 
-    <div class="phone-bento-grid">
-      <div class="phone-widget mini-widget music-widget" role="button" tabindex="0" data-phone-target="pl" onclick="if(!event.target.closest('.music-inline-controls')) togglePanel('pl', this)" onkeydown="if(event.key==='Enter') togglePanel('pl', this)">
-        <span class="mini-widget-label">Music</span>
-        <strong id="phone-track-title">파일을 추가하세요</strong>
-        <span id="phone-track-artist">Playlist</span>
-        <span class="phone-mini-progress"><span id="phone-music-bar"></span></span>
-        <span class="music-inline-controls" aria-label="Music controls">
-          <button type="button" onclick="event.stopPropagation(); prevTrack()" title="이전">‹</button>
-          <button id="phone-play-btn" type="button" onclick="event.stopPropagation(); togglePlay()" title="재생/일시정지">|&gt;</button>
-          <button type="button" onclick="event.stopPropagation(); nextTrack()" title="다음">›</button>
-        </span>
-      </div>
-
-      <button class="phone-widget mini-widget focus-widget" type="button" onclick="openFocusSettings()">
-        <span class="mini-widget-label">Focus</span>
-        <strong id="phone-pomo-time">25:00</strong>
-        <span id="phone-pomo-state">집중 대기</span>
-        <span id="phone-pomo-end">예상 종료 --:--</span>
-        <span class="focus-pulse" aria-hidden="true"></span>
-      </button>
-
-      <button class="phone-widget mini-widget calendar-widget" type="button" data-phone-target="cal" onclick="togglePanel('cal', this)">
-        <span class="mini-widget-label">Calendar</span>
-        <strong id="phone-calendar-date">오늘</strong>
-        <span>daily marks</span>
-      </button>
-
-      <button class="phone-widget mini-widget pip-widget" type="button" onclick="togglePiP()">
-        <span class="mini-widget-label">PiP</span>
-        <strong>Mini view</strong>
-        <span>floating room</span>
-      </button>
-
-      <button id="white-noise-widget" class="phone-widget mini-widget noise-widget" type="button" onclick="toggleWhiteNoise()">
-        <span class="mini-widget-label">Noise</span>
-        <strong id="white-noise-state">OFF</strong>
-        <span>white noise</span>
-      </button>
-
-      <button class="phone-widget mini-widget" type="button" data-phone-target="note" onclick="togglePanel('note', this)">
-        <span class="mini-widget-label">Notes</span>
-        <strong id="phone-note-count">0 notes</strong>
-        <span>quick memo</span>
-      </button>
-
-      <button class="phone-widget mini-widget" type="button" data-phone-target="todo" onclick="togglePanel('todo', this)">
-        <span class="mini-widget-label">Tasks</span>
-        <strong id="phone-todo-count">0 / 0</strong>
-        <span>today queue</span>
-      </button>
-
-      <button class="phone-widget mini-widget settings-widget icon-widget" type="button" data-phone-target="set" onclick="togglePanel('set', this)" title="설정" aria-label="설정">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="3.2"/>
-          <path d="M12 2.7v3M12 18.3v3M4.7 4.7l2.1 2.1M17.2 17.2l2.1 2.1M2.7 12h3M18.3 12h3M4.7 19.3l2.1-2.1M17.2 6.8l2.1-2.1"/>
-        </svg>
-        <span class="mini-widget-label">Settings</span>
-      </button>
+  <div class="phone-widget posture-core" id="phone-posture-widget" data-state="idle" onclick="togglePostureCorrection()">
+    <div class="phone-widget-kicker">POSTURE CORE</div>
+    <div class="posture-state-text" id="phone-posture-state">측정 전</div>
+    <div class="posture-orbit">
+      <div class="posture-orbit-ring"></div>
+      <div class="posture-orbit-core"></div>
     </div>
-  </aside>
+    <div class="posture-meta-row">
+      <span id="phone-calib-status">camera_stopped</span>
+      <span>WAIT</span>
+    </div>
+    <div class="phone-calib-track">
+      <div id="phone-calib-bar"></div>
+    </div>
+    <div class="posture-sample-row">
+      <span>기준 자세</span>
+      <strong id="phone-calib-count">0/30</strong>
+    </div>
+  </div>
+
+  <div class="phone-widget music-widget" onclick="togglePanel('pl', this)" data-phone-target="pl" style="padding: 16px; margin-bottom: 5px;">
+    <div style="display:flex; gap: 14px; align-items: center;">
+      <div style="width: 64px; height: 64px; background: rgba(57,197,187,0.1); border: 1px solid rgba(57,197,187,0.3); border-radius: 14px; display:flex; align-items:center; justify-content:center; flex-shrink: 0;">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#9af3e6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+      </div>
+      <div style="flex: 1; min-width:0;">
+        <div id="phone-track-title" style="color:#fff; font-size:15px; font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:6px;">음악을 추가하세요</div>
+        <div id="phone-track-artist" style="color:#a0c0d8; font-size:11px; margin-bottom:12px;">Playlist</div>
+        <div class="phone-mini-progress">
+          <div id="phone-music-bar"></div>
+        </div>
+      </div>
+    </div>
+    <div class="music-inline-controls" style="display:flex; justify-content:center; gap: 16px; margin-top:16px;">
+      <button onclick="prevTrack(); event.stopPropagation()">❮</button>
+      <button id="phone-play-btn" onclick="togglePlay(); event.stopPropagation()" style="width: 36px; height: 36px;">▶</button>
+      <button onclick="nextTrack(); event.stopPropagation()">❯</button>
+    </div>
+  </div>
+
+  <div class="app-icon-grid">
+    <button class="app-btn" onclick="toggleTimerWidget()">
+      <div class="app-btn-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></div>
+      <span>포커스</span>
+    </button>
+    <button class="app-btn" onclick="togglePanel('note', this)">
+      <div class="app-btn-icon"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></div>
+      <span>노트</span>
+    </button>
+    <button class="app-btn" onclick="togglePanel('todo', this)">
+      <div class="app-btn-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><polyline points="9 11 12 14 22 4"></polyline></svg></div>
+      <span>작업</span>
+    </button>
+    <button class="app-btn" onclick="togglePanel('cal', this)">
+      <div class="app-btn-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></div>
+      <span>캘린더</span>
+    </button>
+    
+    <button class="app-btn" onclick="toggleYouTubeVideo()">
+      <div class="app-btn-icon"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><polygon points="10 8 16 12 10 16 10 8"></polygon></svg></div>
+      <span>뮤비</span>
+    </button>
+    <button class="app-btn" onclick="testReport()">
+      <div class="app-btn-icon"><svg viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg></div>
+      <span>통계</span>
+    </button>
+    <button class="app-btn" onclick="window.toggleNoise && window.toggleNoise()">
+      <div class="app-btn-icon"><svg viewBox="0 0 24 24"><path d="M2 12h4l3-9 5 18 3-9h5"></path></svg></div>
+      <span>백색소음</span>
+    </button>
+    <button class="app-btn" onclick="togglePanel('set', this)">
+      <div class="app-btn-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></div>
+      <span>설정</span>
+    </button>
+  </div>
+</div>
 
   <!-- 포모도로 -->
   <div id="pomo-drag">
@@ -508,7 +498,6 @@
     <div class="panel-body">
       <div class="setting-tabs">
         <div class="stab on" onclick="setTab('gen',this)">전반</div>
-        <div class="stab" onclick="setTab('focus',this)">집중</div>
         <div class="stab" onclick="setTab('audio',this)">오디오</div>
         <div class="stab" onclick="setTab('debug',this)">Debug</div>
       </div>
@@ -543,29 +532,6 @@
         <div class="setting-row">
           <span class="setting-label">오늘 리포트</span>
           <button class="setting-action-btn" type="button" onclick="fetchAndShowReport()">열기</button>
-        </div>
-      </div>
-      <div id="stab-focus" style="display:none;">
-        <div class="focus-settings-summary">
-          <span id="focus-settings-phase">집중 대기</span>
-          <strong id="focus-settings-left">25:00</strong>
-          <span id="focus-settings-end">예상 종료 --:--</span>
-        </div>
-        <div class="setting-row">
-          <span class="setting-label">작업 시간</span>
-          <input class="setting-number-input" id="focus-setting-inp" type="number" min="1" max="90" value="25" onchange="commitFocus('focus-setting-inp')" onkeydown="if(event.key==='Enter')this.blur()">
-        </div>
-        <div class="setting-row">
-          <span class="setting-label">휴식 시간</span>
-          <input class="setting-number-input" id="break-setting-inp" type="number" min="1" max="30" value="5" onchange="commitBreak('break-setting-inp')" onkeydown="if(event.key==='Enter')this.blur()">
-        </div>
-        <div class="setting-row">
-          <span class="setting-label">반복</span>
-          <input class="setting-number-input" id="repeat-setting-inp" type="number" min="1" max="10" value="3" onchange="commitRepeatInput('repeat-setting-inp')" onkeydown="if(event.key==='Enter')this.blur()">
-        </div>
-        <div class="setting-split-actions">
-          <button class="setting-wide-btn" type="button" onclick="togglePomo()">시작 / 일시정지</button>
-          <button class="setting-wide-btn secondary" type="button" onclick="resetPomoTimer()">리셋</button>
         </div>
       </div>
       <div id="stab-audio" style="display:none;">

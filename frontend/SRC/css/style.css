@@ -14,9 +14,25 @@ body{font-family:'Segoe UI',sans-serif;overflow:hidden;background:#000;}
 #clock-date{font-size:11px;color:#7090a0;}
 #topbar-right{flex:1;display:flex;justify-content:flex-end;}
 
-/* POMODORO — draggable wrapper */
-#pomo-drag{position:absolute;top:14px;right:74px;cursor:grab;z-index:8;}
-#pomo-drag:active{cursor:grabbing;}
+#pomo-drag {
+  display: none;
+  position: absolute !important;
+  top: 24px;
+  right: 24px;
+  left: auto;
+  bottom: auto;
+  z-index: 99999 !important;
+  pointer-events: auto !important; 
+  cursor: grab;
+}
+
+#pomo-drag.open {
+  display: block !important;
+}
+
+#pomo-drag:active {
+  cursor: grabbing;
+}
 #pomo-outer{
   width:190px;height:190px;border-radius:50%;
   background:rgba(5,10,25,0.85);
@@ -2762,4 +2778,140 @@ body.widget-right #panel-pl {
     max-height: calc(100vh - 36px);
     overflow: auto;
   }
+}
+
+/* =========================================
+   📱 스마트폰 스타일 앱 아이콘 & 상단바 (PiP 포함)
+   ========================================= */
+
+/* 상단바 버튼 3개가 들어갈 공간 마련 */
+.phone-statusbar {
+  grid-template-columns: minmax(72px, 1fr) auto 34px 34px 34px !important;
+  gap: 8px;
+}
+
+/* 상단바 아이콘 버튼 공통 스타일 */
+.phone-icon-btn {
+  width: 34px; height: 34px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid rgba(255, 229, 205, 0.14); border-radius: 999px;
+  background: rgba(12, 12, 18, 0.42); color: rgba(248, 239, 230, 0.82);
+  cursor: pointer; transition: all 0.16s ease;
+}
+.phone-icon-btn svg {
+  width: 16px; height: 16px; fill: none; stroke: currentColor; 
+  stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+}
+.phone-icon-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(154, 243, 230, 0.42);
+  background: rgba(57, 197, 187, 0.15); color: #9af3e6;
+}
+.phone-icon-btn.exit-btn:hover {
+  border-color: rgba(233, 139, 156, 0.5);
+  background: rgba(233, 139, 156, 0.16); color: #ffd7dd;
+}
+
+/* 4x2 앱 아이콘 그리드 */
+.app-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px 12px;
+  margin-top: 10px;
+}
+.app-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  background: transparent; border: none; cursor: pointer; padding: 0;
+}
+.app-btn-icon {
+  width: 54px; height: 54px; border-radius: 16px;
+  border: 1px solid rgba(57, 197, 187, 0.3); background: rgba(57, 197, 187, 0.08);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: inset 0 0 12px rgba(57, 197, 187, 0.05);
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.app-btn-icon svg {
+  width: 24px; height: 24px; stroke: #9af3e6; fill: none; 
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+.app-btn span {
+  color: #f8efe6; font-size: 11px; font-weight: 700; text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
+/* 마우스 호버(Hover) 효과 
+.app-btn:hover .app-btn-icon, .app-btn.on .app-btn-icon {
+  background: rgba(57, 197, 187, 0.22); border-color: #39c5bb;
+  box-shadow: 0 6px 15px rgba(57, 197, 187, 0.25), inset 0 0 15px rgba(57, 197, 187, 0.2);
+  transform: translateY(-3px) scale(1.05);
+}
+.app-btn:hover span, .app-btn.on span { color: #39c5bb; }*/
+
+/* =========================================
+   🕒 둥근 포모도로 타이머 민트 테마 & 우측 상단 배치
+   ========================================= */
+
+/* 기본적으로는 숨기고, open 클래스가 붙으면 강제 표시! */
+#pomo-drag {
+  display: none !important;
+  top: 24px !important;
+  right: 24px !important; /* 우측 상단으로 고정 */
+  left: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+  z-index: 100 !important;
+}
+#pomo-drag.open {
+  display: block !important;
+}
+
+/* 폰 컨트롤러와 어울리는 둥근 테두리 및 유리 질감 (Mint Theme) */
+#pomo-outer {
+  background: rgba(24, 20, 31, 0.85) !important;
+  border: 1px solid rgba(57, 197, 187, 0.3) !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), 0 0 25px rgba(57, 197, 187, 0.15) !important;
+  backdrop-filter: blur(14px) !important;
+}
+#pomo-inner {
+  background: rgba(12, 12, 18, 0.7) !important;
+  box-shadow: inset 0 0 12px rgba(57, 197, 187, 0.1) !important;
+}
+
+/* 타이머 링 및 내부 요소 색상 변경 */
+#pomo-outer circle:first-child {
+  stroke: rgba(57, 197, 187, 0.1) !important;
+}
+#pomo-ring {
+  stroke: #39c5bb !important; /* 메인 민트색 */
+  filter: drop-shadow(0 0 6px rgba(57, 197, 187, 0.5));
+}
+
+/* 작업/휴식 원형 입력창 */
+.wb-circle {
+  background: rgba(57, 197, 187, 0.08) !important;
+  border: 1px solid rgba(57, 197, 187, 0.3) !important;
+}
+.wb-circle:focus-within, .wb-circle:hover {
+  border-color: #9af3e6 !important;
+  background: rgba(57, 197, 187, 0.2) !important;
+}
+.wb-val {
+  color: #9af3e6 !important;
+}
+.wb-label, #repeat-label {
+  color: rgba(154, 243, 230, 0.7) !important;
+}
+#repeat-val {
+  color: #f8efe6 !important;
+}
+
+/* 재생 버튼 (포인트 그라데이션) */
+#pomo-play {
+  background: linear-gradient(135deg, rgba(154, 243, 230, 0.94), rgba(57, 197, 187, 0.94)) !important;
+  color: #102c2e !important;
+  border: none !important;
+  box-shadow: 0 4px 12px rgba(57, 197, 187, 0.3) !important;
+  transition: transform 0.15s ease !important;
+}
+#pomo-play:hover {
+  transform: scale(1.1) !important;
 }

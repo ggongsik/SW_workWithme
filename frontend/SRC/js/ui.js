@@ -77,7 +77,7 @@ function updatePhonePostureVisual(state) {
   else setText('phone-posture-state', 'NORMAL');
 }
 
-//  드래그기능
+// 드래그 기능 (고무줄 현상 해결 버전)
 function makeDraggable(el, handle) {
   handle = handle || el;
   handle.style.touchAction = 'none';
@@ -91,17 +91,17 @@ function makeDraggable(el, handle) {
 
     window.isUIDragging = true;
 
-    // 간섭 방지 유리판
     dragOverlay = document.createElement('div');
     dragOverlay.style.cssText = 'position: fixed; inset: 0; z-index: 999999; cursor: grabbing; touch-action: none;';
     document.body.appendChild(dragOverlay);
 
     const rect = el.getBoundingClientRect();
     el.style.transform = 'none';
-    el.style.left = rect.left + 'px';
-    el.style.top = rect.top + 'px';
-    el.style.right = 'auto';
-    el.style.bottom = 'auto';
+    
+    el.style.setProperty('left', rect.left + 'px', 'important');
+    el.style.setProperty('top', rect.top + 'px', 'important');
+    el.style.setProperty('right', 'auto', 'important');
+    el.style.setProperty('bottom', 'auto', 'important');
     el.style.willChange = 'transform';
 
     startMouseX = e.clientX;
@@ -114,13 +114,13 @@ function makeDraggable(el, handle) {
     };
 
     const onUp = () => {
-      // 마우스를 놓으면 다시 3D 렌더링을 켭니다.
       window.isUIDragging = false;
 
       const finalRect = el.getBoundingClientRect();
       el.style.transform = 'none';
-      el.style.left = Math.max(0, finalRect.left) + 'px';
-      el.style.top = Math.max(0, finalRect.top) + 'px';
+      
+      el.style.setProperty('left', Math.max(0, finalRect.left) + 'px', 'important');
+      el.style.setProperty('top', Math.max(0, finalRect.top) + 'px', 'important');
       el.style.willChange = 'auto';
 
       if (dragOverlay && dragOverlay.parentNode) {
@@ -866,3 +866,10 @@ function playAlertSound() {
     o.stop(alertAudioCtx.currentTime + 0.5);
   } catch(e) { console.warn(e); }
 }
+
+window.toggleTimerWidget = function() {
+  const pomo = document.getElementById('pomo-drag');
+  if (pomo) {
+    pomo.classList.toggle('open');
+  }
+}; 
