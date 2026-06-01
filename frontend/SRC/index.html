@@ -201,6 +201,100 @@
     <div style="flex:1"></div>
   </div>
 
+  <aside id="phone-controller" class="phone-controller" aria-label="WorkWithMe glass controller">
+    <div class="phone-rim"></div>
+    <div class="phone-statusbar">
+      <div>
+        <strong id="phone-time">00:00</strong>
+        <span id="phone-date">study room</span>
+      </div>
+      <div class="phone-island">
+        <span id="phone-ws-dot" class="phone-dot" data-state="closed"></span>
+        <span id="phone-ws-label">closed</span>
+      </div>
+      <button class="phone-exit-btn" type="button" onclick="logout()" title="결과 정리 및 로그아웃" aria-label="결과 정리 및 로그아웃">
+        <svg viewBox="0 0 18 18" aria-hidden="true">
+          <path d="M7 3H4.5A1.5 1.5 0 0 0 3 4.5v9A1.5 1.5 0 0 0 4.5 15H7"/>
+          <path d="M10.5 5.5 14 9l-3.5 3.5"/>
+          <path d="M14 9H7"/>
+        </svg>
+      </button>
+    </div>
+
+    <button id="phone-posture-widget" class="phone-widget posture-core" type="button" onclick="openCalibration()">
+      <span class="phone-widget-kicker">Posture Core</span>
+      <span id="phone-posture-state" class="posture-state-text">측정 전</span>
+      <span class="posture-orbit" aria-hidden="true">
+        <span class="posture-orbit-ring"></span>
+        <span class="posture-orbit-core"></span>
+      </span>
+      <span class="posture-meta-row">
+        <span id="phone-tracking-status">idle</span>
+        <span id="phone-turtle-chip">WAIT</span>
+      </span>
+      <span class="phone-calib-track">
+        <span id="phone-calib-bar"></span>
+      </span>
+      <span class="posture-sample-row">
+        <span>기준 자세</span>
+        <strong id="phone-calib-samples">0/30</strong>
+      </span>
+      <span class="phone-primary-action">자세 측정 열기</span>
+    </button>
+
+    <div class="phone-bento-grid">
+      <div class="phone-widget mini-widget music-widget" role="button" tabindex="0" data-phone-target="pl" onclick="if(!event.target.closest('.music-inline-controls')) togglePanel('pl', this)" onkeydown="if(event.key==='Enter') togglePanel('pl', this)">
+        <span class="mini-widget-label">Music</span>
+        <strong id="phone-track-title">파일을 추가하세요</strong>
+        <span id="phone-track-artist">Playlist</span>
+        <span class="phone-mini-progress"><span id="phone-music-bar"></span></span>
+        <span class="music-inline-controls" aria-label="Music controls">
+          <button type="button" onclick="event.stopPropagation(); prevTrack()" title="이전">‹</button>
+          <button type="button" onclick="event.stopPropagation(); togglePlay()" title="재생/일시정지">▶</button>
+          <button type="button" onclick="event.stopPropagation(); nextTrack()" title="다음">›</button>
+        </span>
+      </div>
+
+      <button class="phone-widget mini-widget focus-widget" type="button" onclick="togglePomo()">
+        <span class="mini-widget-label">Focus</span>
+        <strong id="phone-pomo-time">25 / 5</strong>
+        <span id="phone-pomo-state">ready</span>
+        <span class="focus-pulse" aria-hidden="true"></span>
+      </button>
+
+      <button class="phone-widget mini-widget" type="button" data-phone-target="note" onclick="togglePanel('note', this)">
+        <span class="mini-widget-label">Notes</span>
+        <strong id="phone-note-count">0 notes</strong>
+        <span>quick memo</span>
+      </button>
+
+      <button class="phone-widget mini-widget" type="button" data-phone-target="todo" onclick="togglePanel('todo', this)">
+        <span class="mini-widget-label">Tasks</span>
+        <strong id="phone-todo-count">0 / 0</strong>
+        <span>today queue</span>
+      </button>
+
+      <button class="phone-widget mini-widget report-widget" type="button" onclick="fetchAndShowReport()">
+        <span class="mini-widget-label">Report</span>
+        <strong>Daily note</strong>
+        <span>7 day trend</span>
+      </button>
+
+      <button class="phone-widget mini-widget" type="button" data-phone-target="set" onclick="togglePanel('set', this)">
+        <span class="mini-widget-label">Settings</span>
+        <strong>Room controls</strong>
+        <span>character / debug</span>
+      </button>
+    </div>
+
+    <div class="phone-quick-dock" aria-label="Quick actions">
+      <button type="button" data-phone-target="cal" onclick="togglePanel('cal', this)" title="캘린더">Cal</button>
+      <button type="button" onclick="togglePiP()" title="미니 창 모드">PiP</button>
+      <button type="button" onclick="toggleYouTubeVideo()" title="뮤직비디오">MV</button>
+      <button type="button" onclick="hideUI()" title="UI 숨기기">Hide</button>
+    </div>
+  </aside>
+
   <!-- 포모도로 -->
   <div id="pomo-drag">
     <div id="pomo-outer">
