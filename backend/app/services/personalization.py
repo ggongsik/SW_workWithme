@@ -26,7 +26,7 @@ from sklearn.ensemble import IsolationForest
 #   범위를 벗어난 값(거북목)이 안정적으로 이상치로 분류된다.
 #   너무 낮으면(0.01~0.05) 범위 밖 값도 정상으로 새고, 너무 높으면(auto) 정상값까지 과검출됨.
 # TODO: 실측 데이터로 튜닝 필요 (AI 파트와 협의).
-IF_CONTAMINATION = 0.1
+IF_CONTAMINATION = 0.05
 IF_N_ESTIMATORS = 200
 IF_RANDOM_STATE = 42
 
