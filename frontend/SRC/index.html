@@ -222,7 +222,7 @@
     </button>
   </div>
 
-  <div class="phone-widget posture-core" id="phone-posture-widget" data-state="idle" onclick="togglePostureCorrection()">
+  <div class="phone-widget posture-core" id="phone-posture-widget" data-state="idle">
     <div class="phone-widget-kicker">POSTURE CORE</div>
     <div class="posture-state-text" id="phone-posture-state">측정 전</div>
     <div class="posture-orbit">
@@ -240,6 +240,10 @@
       <span>기준 자세</span>
       <strong id="phone-calib-count">0/30</strong>
     </div>
+    
+    <button class="phone-primary-action" style="cursor:pointer; border:none;" onclick="openCalibration()">
+      자세 측정 열기
+    </button>
   </div>
 
   <div class="phone-widget music-widget" onclick="togglePanel('pl', this)" data-phone-target="pl" style="padding: 16px; margin-bottom: 5px;">
