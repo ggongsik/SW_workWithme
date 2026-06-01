@@ -6,7 +6,7 @@
 import { initWebSocket } from './network.js';
 import { openCalibration, closeCalibration, startCalibration, togglePostureCorrection } from './pose.js';
 import { 
-  checkLogin, logout, hideUI, restoreUI, togglePanel, closePanel, setTab, setTimeFmt, togglePiP, setUIGlow,closeReportAndLogout, isSignupMode, toggleSignupMode, handleSignup
+  checkLogin, logout, hideUI, restoreUI, togglePanel, closePanel, setTab, setTimeFmt, togglePiP, setUIGlow, closeReportAndLogout, fetchAndShowReport, isSignupMode, toggleSignupMode, handleSignup
 } from './ui.js';
 import { 
   adjRepeat, commitRepeat, numOnly, commitFocus, commitBreak, togglePomo 
@@ -38,6 +38,7 @@ window.setTimeFmt = setTimeFmt;
 window.togglePiP = togglePiP;
 window.setUIGlow = setUIGlow;
 window.closeReportAndLogout = closeReportAndLogout;
+window.fetchAndShowReport = fetchAndShowReport;
 window.isSignupMode = isSignupMode;
 window.toggleSignupMode = toggleSignupMode;
 window.handleSignup = handleSignup;

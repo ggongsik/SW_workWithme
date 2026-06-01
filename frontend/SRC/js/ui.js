@@ -17,7 +17,6 @@ export let isSignupMode = false;
 function updateClock() {
   const timeEl = document.getElementById('clock-time');
   const dateEl = document.getElementById('clock-date');
-  if(!timeEl || !dateEl) return;
 
   const d = new Date();
   const days = ['일','월','화','수','목','금','토'];
@@ -30,8 +29,54 @@ function updateClock() {
     h = h % 12 || 12;
   }
 
-  timeEl.textContent = String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + suffix;
-  dateEl.textContent = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + '(' + days[d.getDay()] + ')';
+  const displayTime = String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + suffix;
+  const displayDate = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + '(' + days[d.getDay()] + ')';
+
+  if (timeEl) timeEl.textContent = displayTime;
+  if (dateEl) dateEl.textContent = displayDate;
+
+  const phoneTime = document.getElementById('phone-time');
+  const phoneDate = document.getElementById('phone-date');
+  if (phoneTime) phoneTime.textContent = displayTime;
+  if (phoneDate) phoneDate.textContent = `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${days[d.getDay()]}`;
+}
+
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value;
+}
+
+function syncPhoneController() {
+  const playerTitle = document.getElementById('player-title')?.textContent?.trim() || '파일을 추가하세요';
+  const playerArtist = document.getElementById('player-artist')?.textContent?.trim() || 'Playlist';
+  const playerBar = document.getElementById('player-bar')?.style.width || '0%';
+  const focusMin = document.getElementById('focus-inp')?.value || '25';
+  const breakMin = document.getElementById('break-inp')?.value || '5';
+  const pomoPlay = document.getElementById('pomo-play')?.textContent?.trim() || '▶';
+  const noteCount = document.querySelectorAll('#note-list .note-item').length;
+  const todoCount = document.getElementById('todo-count')?.textContent?.trim() || '0 / 0 완료';
+
+  setText('phone-track-title', playerTitle || '파일을 추가하세요');
+  setText('phone-track-artist', playerArtist || 'Playlist');
+  const phoneMusicBar = document.getElementById('phone-music-bar');
+  if (phoneMusicBar) phoneMusicBar.style.width = playerBar;
+
+  setText('phone-pomo-time', `${focusMin} / ${breakMin}`);
+  setText('phone-pomo-state', pomoPlay === '⏸' ? 'running' : 'ready');
+  setText('phone-note-count', `${noteCount} notes`);
+  setText('phone-todo-count', todoCount.replace('완료', '').trim());
+}
+
+function updatePhonePostureVisual(state) {
+  const normalized = state === 'caution' ? 'warn' : (state || 'idle');
+  const widget = document.getElementById('phone-posture-widget');
+  const controller = document.getElementById('phone-controller');
+  if (widget) widget.dataset.state = normalized;
+  if (controller) controller.dataset.posture = normalized;
+
+  if (normalized === 'alert') setText('phone-posture-state', 'ALERT');
+  else if (normalized === 'warn') setText('phone-posture-state', 'WARNING');
+  else setText('phone-posture-state', 'NORMAL');
 }
 
 //  드래그기능
@@ -95,7 +140,10 @@ function makeDraggable(el, handle) {
 
 window.addEventListener('DOMContentLoaded', () => {
   setInterval(updateClock, 1000);
+  setInterval(syncPhoneController, 1000);
   updateClock();
+  syncPhoneController();
+  updatePhonePostureVisual(currentGlowState);
   restoreSavedLogin();
 
   const pomoDrag = document.getElementById('pomo-drag');
@@ -366,16 +414,20 @@ export function togglePanel(id, btn) {
   const wasOpen = p.classList.contains('open');
   p.classList.toggle('open', !wasOpen);
   if (btn && btn.classList) btn.classList.toggle('on', !wasOpen);
+  document.querySelectorAll(`[data-phone-target="${id}"]`).forEach(el => {
+    if (el !== btn) el.classList.toggle('on', !wasOpen);
+  });
 }
 
 export function closePanel(id, btnId) {
   document.getElementById('panel-' + id).classList.remove('open');
   const b = document.getElementById(btnId);
   if (b) b.classList.remove('on');
+  document.querySelectorAll(`[data-phone-target="${id}"]`).forEach(el => el.classList.remove('on'));
 }
 
 export function hideUI() {
-  ['ui-layer','sidebar','pomo-drag','bottom-bar-drag'].forEach(id=>{
+  ['ui-layer','sidebar','pomo-drag','bottom-bar-drag','phone-controller'].forEach(id=>{
     const el = document.getElementById(id);
     if(el) { el.style.opacity='0'; el.style.pointerEvents='none'; }
   });
@@ -384,7 +436,7 @@ export function hideUI() {
 }
 
 export function restoreUI() {
-  ['ui-layer','sidebar','pomo-drag','bottom-bar-drag'].forEach(id=>{
+  ['ui-layer','sidebar','pomo-drag','bottom-bar-drag','phone-controller'].forEach(id=>{
     const el = document.getElementById(id);
     if(el) { el.style.opacity='1'; el.style.pointerEvents=''; }
   });
@@ -417,6 +469,7 @@ export let pipWindow = null;
 // 외부(콘솔, 웹소켓)에서 상태를 바꿀 때 호출할 함수
 export function setUIGlow(state) {
   currentGlowState = state;
+  updatePhonePostureVisual(state);
 
   // 메인 화면 전체 테두리 네온 효과 조작
   const screenBorder = document.getElementById('warning-border');

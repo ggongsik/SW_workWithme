@@ -62,7 +62,47 @@ function stateClass(value) {
   return '';
 }
 
+function setPhoneText(id, value) {
+  const el = $(id);
+  if (el) el.textContent = value;
+}
+
+function trackingLabel(value) {
+  if (value === 'running') return '측정 중';
+  if (value === 'reconnecting_websocket') return '재연결';
+  if (value === 'calibration_finalizing') return '기준 확인';
+  if (value === 'calibration_done') return '기준 완료';
+  if (value === 'needs_calibration') return '기준 필요';
+  if (value === 'error' || value === 'reconnect_failed') return '점검 필요';
+  return value || 'idle';
+}
+
+function renderPhoneSummary() {
+  const effectivePosture = state.forcedState || state.postureState || 'idle';
+  const phoneWidget = $('phone-posture-widget');
+  const controller = $('phone-controller');
+  const wsDot = $('phone-ws-dot');
+  const calibBar = $('phone-calib-bar');
+  const hasPostureSignal = state.trackingStatus === 'running' || state.turtleDetected != null || state.calibrationSamples > 0;
+
+  if (phoneWidget) phoneWidget.dataset.state = stateClass(effectivePosture) || 'idle';
+  if (controller) controller.dataset.posture = stateClass(effectivePosture) || 'idle';
+  if (wsDot) wsDot.dataset.state = state.wsState || 'closed';
+
+  setPhoneText('phone-posture-state', hasPostureSignal ? stateLabel(effectivePosture) : '측정 전');
+  setPhoneText('phone-tracking-status', trackingLabel(state.trackingStatus));
+  setPhoneText('phone-ws-label', state.wsState || 'closed');
+  setPhoneText('phone-turtle-chip', state.turtleDetected == null ? 'WAIT' : (state.turtleDetected ? 'TURTLE' : 'GOOD'));
+  setPhoneText('phone-calib-samples', `${state.calibrationSamples}/${state.calibrationTarget}`);
+
+  if (calibBar) {
+    const target = Math.max(1, state.calibrationTarget || 30);
+    calibBar.style.width = `${Math.min(100, Math.round((state.calibrationSamples / target) * 100))}%`;
+  }
+}
+
 function refreshSummary() {
+  renderPhoneSummary();
   if (!state.enabled) return;
   const status = $('debug-tracking-status');
   const posture = $('debug-posture-state');
