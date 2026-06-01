@@ -569,16 +569,36 @@
         </div>
       </div>
       <div id="stab-audio" style="display:none;">
-        <div class="vol-row"><span class="vol-label">마스터</span><input type="range" min="0" max="100" value="50" step="1" oninput="this.nextElementSibling.textContent=this.value+'%'"><span class="vol-val">50%</span></div>
-        <div class="vol-row"><span class="vol-label">시스템 SE</span><input type="range" min="0" max="100" value="50" step="1" oninput="this.nextElementSibling.textContent=this.value+'%'"><span class="vol-val">50%</span></div>
-        <div class="vol-row"><span class="vol-label">음악</span><input type="range" min="0" max="100" value="50" step="1" oninput="this.nextElementSibling.textContent=this.value+'%'"><span class="vol-val">50%</span></div>
-        <div class="setting-row" style="margin-top:4px;">
-          <span class="setting-label">포모도로 SE</span>
-          <div class="toggle-pair"><div class="tpill on" id="pomo-sound-on" onclick="setPomoSound(true,this)">켬</div><div class="tpill" id="pomo-sound-off" onclick="setPomoSound(false,this)">끔</div></div>
-        </div>
         <div class="setting-row">
-          <span class="setting-label">뮤직비디오</span>
-          <button class="setting-action-btn" type="button" onclick="toggleYouTubeVideo()">켜기 / 끄기</button>
+          <span class="setting-label">타이머 사운드</span>
+          <div class="vol-row">
+            <input type="range" id="vol-timer" min="0" max="100" value="50" style="width:80px; accent-color:#00bfff;">
+            <span class="vol-val" id="val-timer">50%</span>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <span class="setting-label">경고음</span>
+          <div class="vol-row">
+            <input type="range" id="vol-warning" min="0" max="100" value="50" style="width:80px; accent-color:#00bfff;">
+            <span class="vol-val" id="val-warning">50%</span>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <span class="setting-label">음악</span>
+          <div class="vol-row">
+            <input type="range" id="vol-music" min="0" max="100" value="50" style="width:80px; accent-color:#00bfff;">
+            <span class="vol-val" id="val-music">50%</span>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <span class="setting-label">자세 경고음</span>
+          <div class="toggle-pair">
+            <div class="tpill on" id="warn-on">켬</div>
+            <div class="tpill" id="warn-off">끔</div>
+          </div>
         </div>
         <div class="setting-row">
           <span class="setting-label">화이트 노이즈</span>

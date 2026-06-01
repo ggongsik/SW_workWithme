@@ -6,6 +6,7 @@
 import { escHtml } from './tools.js';
 import { pipWindow } from './ui.js';
 
+
 // ── 1. 상태 변수 ──────────────────────────────────────────────────────────────
 const audio = new Audio();
 audio.volume = 0.8;
@@ -723,4 +724,14 @@ export function reloadPlaylistForUser() {
 
   // 내 DB만 다시 로드하기
   loadSavedTracks(); 
+}
+// 💡 외부에서 음악 볼륨을 실시간 조절하도록 내보냄
+export function setMusicVolume(vol) {
+  // 로컬 파일 볼륨 적용 (0.0 ~ 1.0)
+  audio.volume = vol; 
+  
+  // 유튜브 IFrame 볼륨 적용 (0 ~ 100)
+  if (ytPlayer && ytReady && typeof ytPlayer.setVolume === 'function') {
+    ytPlayer.setVolume(vol * 100); 
+  }
 }

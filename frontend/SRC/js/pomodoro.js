@@ -2,7 +2,8 @@
 // js/pomodoro.js
 // 포모도로 타이머 (작업/휴식 시간, 반복 횟수, 알림음) 관련 로직 모음
 // ============================================================================
-
+export let timerVolume = 0.5; // 기본값 50%
+export function setTimerVolume(v) { timerVolume = v; }
 // ── 1. 상태 변수 및 상수 ──
 const CIRC = 2 * Math.PI * 88; // 둥근 진행바(svg ring)의 둘레 계산
 let focusMin = 25;             // 기본 작업 시간 (분)
@@ -18,8 +19,9 @@ let pomoSoundEnabled = localStorage.getItem('lofi_pomo_sound') !== 'off';
 // ── 2. 알림음 (Web Audio API) 세팅 ──
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-// 기본 삐- 소리 생성 함수 (내부 전용)
+// 기본 삐- 소리 생성 함수 
 function beep(freq, dur, type = 'sine', vol = 0.3) {
+  if (timerVolume <= 0) return; // 볼륨이 0이면 아예 무음 처리
   try {
     const o = audioCtx.createOscillator();
     const g = audioCtx.createGain();
@@ -27,7 +29,11 @@ function beep(freq, dur, type = 'sine', vol = 0.3) {
     g.connect(audioCtx.destination);
     o.type = type;
     o.frequency.value = freq;
-    g.gain.setValueAtTime(vol, audioCtx.currentTime);
+    
+    // 💡 기본 소리(vol)에 사용자 설정 볼륨(timerVolume) 비율 곱하기
+    const finalVol = vol * (timerVolume / 0.5); 
+    
+    g.gain.setValueAtTime(finalVol, audioCtx.currentTime);
     g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
     o.start();
     o.stop(audioCtx.currentTime + dur);

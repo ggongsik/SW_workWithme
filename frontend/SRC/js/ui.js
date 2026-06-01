@@ -2,8 +2,8 @@
 // js/ui.js
 // 로그인, UI 토글, 패널 제어, 환경설정, 드래그 로직, 시계 및 PiP/네온 효과
 // ============================================================================
-
-import { reloadPlaylistForUser } from './player.js';
+import { setTimerVolume } from './pomodoro.js'; // 새로 추가!
+import { reloadPlaylistForUser, setMusicVolume } from './player.js';
 import { registerUser, loginUser } from './firebase.js';
 import { getBackendApiBase, getBackendAuthToken, initWebSocket, sendCommand } from './network.js';
 import { openCalibration, closeCalibration, startCalibration, togglePostureCorrection, stopCamera } from './pose.js';
@@ -157,6 +157,51 @@ window.addEventListener('DOMContentLoaded', () => {
       panel.style.zIndex = topZ;
     });
   });
+
+  // 🎚️ 오디오 설정 패널 슬라이더 연동
+  const volTimer = document.getElementById('vol-timer');
+  const volWarning = document.getElementById('vol-warning');
+  const volMusic = document.getElementById('vol-music');
+
+  if (volTimer) {
+    volTimer.addEventListener('input', (e) => {
+      const val = parseInt(e.target.value);
+      document.getElementById('val-timer').innerText = val + '%';
+      setTimerVolume(val / 100); // 0.0 ~ 1.0 전달
+    });
+  }
+  
+  if (volWarning) {
+    volWarning.addEventListener('input', (e) => {
+      const val = parseInt(e.target.value);
+      document.getElementById('val-warning').innerText = val + '%';
+      warningVol = val / 100;
+    });
+  }
+  
+  if (volMusic) {
+    volMusic.addEventListener('input', (e) => {
+      const val = parseInt(e.target.value);
+      document.getElementById('val-music').innerText = val + '%';
+      setMusicVolume(val / 100);
+    });
+  }
+
+  // 🎚️ 경고음 ON/OFF 버튼 연동
+  const warnOn = document.getElementById('warn-on');
+  const warnOff = document.getElementById('warn-off');
+  if (warnOn && warnOff) {
+    warnOn.addEventListener('click', () => {
+      warningEnabled = true;
+      warnOn.classList.add('on'); 
+      warnOff.classList.remove('on');
+    });
+    warnOff.addEventListener('click', () => {
+      warningEnabled = false;
+      warnOff.classList.add('on'); 
+      warnOn.classList.remove('on');
+    });
+  }
 });
 
 function restoreSavedLogin() {
@@ -302,71 +347,154 @@ export function showDailyReport(data) {
     if(ratioEl) ratioEl.innerHTML = `${turtleRatioPct}<span style="font-size:16px">%</span>`;
 
 
-    // --- [2] 우측 반: 지난 7일간 추이 그래프 ---
+    // --- [2] 우측 반: 지난 7일간 추이 그래프 (위/아래 2단 막대그래프) ---
     const chartContainer = document.getElementById('report-chart');
     if (chartContainer) {
         chartContainer.innerHTML = '';
+        
+        // 💡 [핵심 해결] 가로 찌그러짐 방지! 
+        // 기존 HTML의 align-items: flex-end 때문에 우측으로 쏠린 현상을 'stretch'로 풀어줍니다.
+        chartContainer.style.display = 'flex';
+        chartContainer.style.flexDirection = 'column';
+        chartContainer.style.gap = '35px';
+        chartContainer.style.justifyContent = 'center';
+        chartContainer.style.alignItems = 'stretch'; // 🌟 가로 100% 꽉 채우기 마법의 속성!
+        chartContainer.style.width = '100%'; 
+        chartContainer.style.borderBottom = 'none'; 
+        
+        const timeData = weekly.map(dayData => Math.round((dayData.turtle_ratio * dayData.monitoring_duration_sec) / 60));
+        const ratioData = weekly.map(dayData => Math.round(dayData.turtle_ratio * 100));
+        
+        const maxTime = Math.max(...timeData, 1);
+        const maxRatio = Math.max(...ratioData, 1);
 
-        // 그래프 배경 눈금선
-        for (let i = 1; i <= 4; i++) {
-            const gridLine = document.createElement('div');
-            gridLine.style.position = 'absolute';
-            gridLine.style.bottom = `${i * 25}%`;
-            gridLine.style.left = '0';
-            gridLine.style.right = '0';
-            gridLine.style.borderBottom = '1px dashed rgba(255, 229, 205, 0.18)';
-            gridLine.style.zIndex = '0';
-            chartContainer.appendChild(gridLine);
+        // 🟦 1. 위쪽 그래프 (시간) 뼈대
+        const topChart = document.createElement('div');
+        topChart.style.flex = '1';
+        topChart.style.display = 'flex';
+        topChart.style.alignItems = 'flex-end'; 
+        topChart.style.borderBottom = '1px solid rgba(0, 180, 255, 0.4)';
+        topChart.style.position = 'relative';
+
+        const topTitle = document.createElement('div');
+        topTitle.innerText = '무너진 시간 (분)';
+        topTitle.style.position = 'absolute';
+        topTitle.style.top = '-18px';
+        topTitle.style.left = '0';
+        topTitle.style.fontSize = '12px';
+        topTitle.style.color = '#00bfff';
+        topTitle.style.fontWeight = 'bold';
+        topChart.appendChild(topTitle);
+
+        // 🟩 2. 아래쪽 그래프 (비율) 뼈대
+        const botChart = document.createElement('div');
+        botChart.style.flex = '1';
+        botChart.style.display = 'flex';
+        botChart.style.alignItems = 'flex-end';
+        botChart.style.borderBottom = '1px solid rgba(0, 180, 255, 0.4)';
+        botChart.style.position = 'relative';
+
+        const botTitle = document.createElement('div');
+        botTitle.innerText = '거북목 비율 (%)';
+        botTitle.style.position = 'absolute';
+        botTitle.style.top = '-18px';
+        botTitle.style.left = '0';
+        botTitle.style.fontSize = '12px';
+        botTitle.style.color = '#4ade80';
+        botTitle.style.fontWeight = 'bold';
+        botChart.appendChild(botTitle);
+
+        // 배경 눈금선 추가
+        function addGridLines(chart) {
+            for (let i = 1; i <= 3; i++) {
+                const gridLine = document.createElement('div');
+                gridLine.style.position = 'absolute';
+                gridLine.style.bottom = `${i * 33}%`;
+                gridLine.style.left = '0';
+                gridLine.style.right = '0';
+                gridLine.style.borderBottom = '1px dashed rgba(255, 255, 255, 0.15)';
+                gridLine.style.zIndex = '0';
+                chart.appendChild(gridLine);
+            }
         }
+        addGridLines(topChart);
+        addGridLines(botChart);
 
-        weekly.forEach(dayData => {
-            const turtleRatio = Number.isFinite(dayData.turtle_ratio) ? dayData.turtle_ratio : 0;
-            const monitoringDurationSec = Number.isFinite(dayData.monitoring_duration_sec) ? dayData.monitoring_duration_sec : 0;
-            const relativeHeightPct = (turtleRatio / maxRatio) * 100;
-            const targetHeight = Math.max(15, (relativeHeightPct / 100) * 250);
-            const dateStr = typeof dayData.date === 'string' ? dayData.date.slice(5) : '-';
-            const heightPct = turtleRatio * 100;
-            const durationMin = Math.round((turtleRatio * monitoringDurationSec) / 60);
+        // 막대 렌더링 루프
+        weekly.forEach((dayData, i) => {
+            const dateStr = dayData.date.slice(5); 
+
+            // --- 🟦 위쪽 차트 막대 조립 ---
+            const topWrapper = document.createElement('div');
+            topWrapper.style.flex = '1';
+            topWrapper.style.display = 'flex';
+            topWrapper.style.flexDirection = 'column';
+            topWrapper.style.alignItems = 'center';
+            topWrapper.style.justifyContent = 'flex-end';
+            topWrapper.style.zIndex = '1';
+
+            const topVal = document.createElement('div');
+            topVal.innerText = `${timeData[i]}`;
+            topVal.style.fontSize = '12px';
+            topVal.style.color = '#00bfff';
+            topVal.style.fontWeight = 'bold';
+            topVal.style.marginBottom = '4px';
+
+            const topHeight = Math.max(5, (timeData[i] / maxTime) * 75); 
+
+            const topBar = document.createElement('div');
+            topBar.style.width = '24px'; // 💡 막대기가 뭉치지 않게 고정 너비 부여
+            topBar.style.backgroundColor = '#00bfff';
+            topBar.style.borderRadius = '3px 3px 0 0';
+            topBar.style.height = `${topHeight}px`;
+            topBar.style.minHeight = `${topHeight}px`;
+
+            topWrapper.appendChild(topVal);
+            topWrapper.appendChild(topBar);
+            topChart.appendChild(topWrapper);
 
 
-            const barWrapper = document.createElement('div');
-            barWrapper.style.display = 'flex';
-            barWrapper.style.flexDirection = 'column';
-            barWrapper.style.alignItems = 'center';
-            barWrapper.style.justifyContent = 'flex-end';
-            barWrapper.style.flex = '1';
-            barWrapper.style.zIndex = '1'; // 눈금선보다 앞에 오게 설정
+            // --- 🟩 아래쪽 차트 막대 조립 ---
+            const botWrapper = document.createElement('div');
+            botWrapper.style.flex = '1';
+            botWrapper.style.display = 'flex';
+            botWrapper.style.flexDirection = 'column';
+            botWrapper.style.alignItems = 'center';
+            botWrapper.style.justifyContent = 'flex-end';
+            botWrapper.style.zIndex = '1';
 
-            // 💡 2. [핵심] 텍스트를 "분"과 "(%)" 두 줄로 표시!
-            const valueLabel = document.createElement('div');
-            valueLabel.className = 'report-chart-value';
-            valueLabel.style.fontSize = '12px';
-            valueLabel.style.fontWeight = 'bold';
-            valueLabel.style.marginBottom = '6px';
-            valueLabel.style.textAlign = 'center';
-            valueLabel.style.lineHeight = '1.3'; // 줄간격
-            // 분(min)을 크게, 퍼센트(%)는 약간 작고 흐리게 표시
-            valueLabel.innerHTML = `${durationMin}분<br><span>(${Math.round(heightPct)}%)</span>`;
+            const botVal = document.createElement('div');
+            botVal.innerText = `${ratioData[i]}`;
+            botVal.style.fontSize = '12px';
+            botVal.style.color = '#4ade80';
+            botVal.style.fontWeight = 'bold';
+            botVal.style.marginBottom = '4px';
 
-            // 창이 커진 만큼 막대기도 30px로 조금 더 뚱뚱하게!
-            const bar = document.createElement('div');
-            bar.className = 'report-chart-bar';
-            bar.style.height = `${targetHeight}px`;
-            bar.style.minHeight = `${targetHeight}px`;
-            bar.title = `${durationMin}분 (${heightPct.toFixed(1)}%)`;
+            const botHeight = Math.max(5, (ratioData[i] / maxRatio) * 75);
 
-            const label = document.createElement('span');
-            label.style.fontSize = '13px';
-            label.style.color = 'rgba(217, 200, 188, 0.86)';
+            const botBar = document.createElement('div');
+            botBar.style.width = '24px';
+            botBar.style.backgroundColor = '#4ade80';
+            botBar.style.borderRadius = '3px 3px 0 0';
+            botBar.style.height = `${botHeight}px`;
+            botBar.style.minHeight = `${botHeight}px`;
+
+            const label = document.createElement('div');
+            label.style.fontSize = '11px';
+            label.style.color = '#a0c0d8';
             label.style.marginTop = '8px';
+            label.style.position = 'absolute'; 
+            label.style.bottom = '-20px';
             label.innerText = dateStr;
 
-            // 조립하기
-            barWrapper.appendChild(valueLabel);
-            barWrapper.appendChild(bar);
-            barWrapper.appendChild(label);
-            chartContainer.appendChild(barWrapper);
+            botWrapper.appendChild(botVal);
+            botWrapper.appendChild(botBar);
+            botWrapper.appendChild(label);
+            botChart.appendChild(botWrapper);
         });
+
+        chartContainer.appendChild(topChart);
+        chartContainer.appendChild(botChart);
     }
 
     // 리포트 오버레이 띄우기
@@ -491,13 +619,11 @@ export function openFocusSettings() {
 
 export let pipWindow = null;
 
-// 외부(콘솔, 웹소켓)에서 상태를 바꿀 때 호출할 함수
 export function setUIGlow(state) {
-  currentGlowState = state;
-  updatePhonePostureVisual(state);
-
-  // 메인 화면 전체 테두리 네온 효과 조작
-  const screenBorder = document.getElementById('warning-border');
+  const prevState = currentGlowState; // 💡 이전 상태 기억
+  currentGlowState = state; 
+  
+  const screenBorder = document.getElementById('warning-border'); 
   if (screenBorder) {
     if (state === 'idle') {
       screenBorder.style.boxShadow = 'none';
@@ -505,6 +631,11 @@ export function setUIGlow(state) {
       screenBorder.style.boxShadow = 'inset 0 0 50px rgba(251, 146, 60, 0.6)';
     } else if (state === 'alert') {
       screenBorder.style.boxShadow = 'inset 0 0 100px rgba(248, 113, 113, 0.9)';
+      
+      // 🚨 이전에 alert 상태가 아니었는데 새로 alert가 되었다면 사이렌 발사!
+      if (prevState !== 'alert') {
+        playAlertSound();
+      }
     }
   }
   console.log(` UI 상태가 변경되었습니다: ${state}`);
@@ -707,3 +838,31 @@ window.testReport = function() {
     console.log("🔧 [Dev Mode] 가짜 데이터로 리포트 화면을 렌더링합니다!");
     showDailyReport(mockData);
 };
+
+// ── 오디오 설정 및 경고음 상태 변수 ──
+let warningVol = 0.5;
+let warningEnabled = true;
+const alertAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+// 자세 무너짐(Alert) 경고음 생성기
+function playAlertSound() {
+  if (!warningEnabled || warningVol <= 0) return;
+  if (alertAudioCtx.state === 'suspended') alertAudioCtx.resume();
+
+  try {
+    const o = alertAudioCtx.createOscillator();
+    const g = alertAudioCtx.createGain();
+    
+    o.type = 'sawtooth'; // 톱니파로 찌르는 듯한 날카로운 경고음
+    o.frequency.setValueAtTime(400, alertAudioCtx.currentTime);
+    o.frequency.exponentialRampToValueAtTime(800, alertAudioCtx.currentTime + 0.3); // 사이렌처럼 피치가 쭉 올라감
+
+    g.gain.setValueAtTime(warningVol * 0.5, alertAudioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.01, alertAudioCtx.currentTime + 0.5); // 페이드아웃
+
+    o.connect(g);
+    g.connect(alertAudioCtx.destination);
+    o.start();
+    o.stop(alertAudioCtx.currentTime + 0.5);
+  } catch(e) { console.warn(e); }
+}
