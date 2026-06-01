@@ -99,16 +99,32 @@ class PosturePipeline:
         depth_map = self._depth_model.infer_image(frame)
 
         # 5x5 패치 평균으로 깊이값 읽기
-        def get_depth(lmk) -> float:
-            x  = int(lmk.x * w)
-            y  = int(lmk.y * h)
-            x1, x2 = max(0, x-2), min(w, x+3)
-            y1, y2 = max(0, y-2), min(h, y+3)
-            return float(np.mean(depth_map[y1:y2, x1:x2]))
+      def get_depth(lmk) -> float | None:
+        if lmk.x < 0.0 or lmk.x > 1.0 or lmk.y < 0.0 or lmk.y > 1.0:
+            return None
+        x = int(lmk.x * (w - 1))
+        y = int(lmk.y * (h - 1))
+        x1, x2 = max(0, x-2), min(w, x+3)
+        y1, y2 = max(0, y-2), min(h, y+3)
+        patch = depth_map[y1:y2, x1:x2]
+        result = float(np.mean(patch))
+        if np.isnan(result):
+            return None
+        return result
 
         nose_d    = get_depth(lm[P.NOSE])
         l_sh_d    = get_depth(lm[P.LEFT_SHOULDER])
         r_sh_d    = get_depth(lm[P.RIGHT_SHOULDER])
+        if nose_d is None or l_sh_d is None or r_sh_d is None:
+            return PoseResult(
+            delta_depth=0.0,
+            nose_depth=0.0,
+            shoulder_depth=0.0,
+            mp_delta_z=0.0,
+            detected=False,
+            confidence=0.0,
+            processing_time_ms=round((time.perf_counter()-start)*1000, 2)
+    )
         shoulder_d = (l_sh_d + r_sh_d) / 2
         delta      = nose_d - shoulder_d
 
