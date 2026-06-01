@@ -2,8 +2,8 @@
 실시간 거북목 감지 로직.
 
 - EMA 스무딩으로 노이즈 완화
-- 히스테리시스로 임계값 근처 떨림 방지
-- 결과는 SessionState에 누적 (Step 9에서 DB로 저장)
+- 개인화 Isolation Forest 모델로 거북목(이상치) 판정 (기존 임계값/히스테리시스 방식 폐기)
+- 결과는 SessionState에 누적 (DB 저장에 사용)
 """
 import time
 import math
@@ -12,12 +12,9 @@ from typing import Optional
 from dataclasses import dataclass
 
 from app.websocket.manager import SessionState
+from app.services import personalization
 
-"""모두 임의 값 (수정 필요) - ex) 알림이 너무 자주 뜨면 HIGH_SIGMA 올려"""
 EMA_ALPHA = 0.3                    # EMA 가중치 (0~1, 클수록 빠른 반응)
-HYSTERESIS_LOW_SIGMA = 1.0         # 정상 복귀 임계값: baseline + 1σ
-HYSTERESIS_HIGH_SIGMA = 2.0        # 거북목 진입 임계값: baseline + 2σ
-                                   # (이 값은 calibration.THRESHOLD_SIGMA와 일치해야 함)
 
 @dataclass
 class DetectionResult:
@@ -25,8 +22,8 @@ class DetectionResult:
     delta_depth: float
     delta_depth_smoothed: float
     baseline: float
-    threshold_low: float
-    threshold_high: float
+    threshold_low: float   # 표시·참고용 (검출엔 미사용)
+    threshold_high: float  # 표시·참고용 (검출엔 미사용)
     timestamp: float
 
 """ AI 파이프라인이 자체적으로 EMA를 한다면 빼는 거 고려"""
@@ -37,11 +34,13 @@ def detect(state: SessionState, raw_delta_depth: float) -> Optional[DetectionRes
     """
     한 프레임의 raw ΔDepth를 받아 거북목 여부를 판정.
 
-    monitoring 모드가 아니거나 baseline이 없으면 None.
+    monitoring 모드가 아니거나 baseline/모델이 없으면 None.
     """
     if state.mode != "monitoring":
         return None
     if state.baseline_delta_depth is None or state.baseline_std is None:
+        return None
+    if state.posture_model is None:
         return None
     if not math.isfinite(raw_delta_depth):
         return None
@@ -56,27 +55,19 @@ def detect(state: SessionState, raw_delta_depth: float) -> Optional[DetectionRes
     new_ema = update_ema(prev_ema, raw_delta_depth)
     state.ema_value = new_ema
 
-    # 2. 히스테리시스 임계값 계산
-    # threshold = baseline + THRESHOLD_SIGMA * std
-    threshold_low = baseline + HYSTERESIS_LOW_SIGMA* std
-    threshold_high = baseline + HYSTERESIS_HIGH_SIGMA* std
-
-    is_turtle = state.is_turtle_active
-
-    # 이 수치로 충분히 판단이 될까? 뭔가 너무 빡빡한 느낌
-    if (new_ema > threshold_high):
-        is_turtle = True
-    elif (new_ema < threshold_low):
-        is_turtle = False
-
+    # 2. 개인화 IF 모델로 거북목 판정 (EMA 스무딩된 값을 입력)
+    is_turtle = personalization.is_turtle(state.posture_model, new_ema)
     state.is_turtle_active = is_turtle
+
+    # threshold 값은 표시·참고용으로만 계산해서 메시지에 실어보냄
+    threshold_ref = state.threshold if state.threshold is not None else baseline
 
     return DetectionResult(
         is_turtle = is_turtle,
         delta_depth = raw_delta_depth,
         delta_depth_smoothed = new_ema,
         baseline = baseline,
-        threshold_low = threshold_low,
-        threshold_high = threshold_high,
+        threshold_low = baseline,
+        threshold_high = threshold_ref,
         timestamp = time.time()
     )

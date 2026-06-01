@@ -4,3 +4,4 @@ sqlalchemy>=2.0
 aiosqlite>=0.19
 numpy>=1.26,<2.0
 Pillow>=10.0
+scikit-learn>=1.3

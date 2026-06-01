@@ -36,8 +36,12 @@ class SessionState:
 
     baseline_delta_depth: Optional[float] = None
     baseline_std: Optional[float] = None
-    threshold: Optional[float] = None # baseline_delta_depth + 2*baseline_std
+    threshold: Optional[float] = None # baseline_delta_depth + 2*baseline_std (표시·참고용)
     ema_value: Optional[float] = None # 직전 하나만 기억
+
+    # 캘리브레이션마다 새로 학습되는 개인화 IF 모델 (메모리 보관, DB 저장 안 함)
+    # 타입: app.services.personalization.PostureModel
+    posture_model: Optional[Any] = None
 
     is_turtle_active: bool = False
 
@@ -48,6 +52,7 @@ class CalibrationSnapshot:
     baseline_delta_depth: float
     baseline_std: float
     threshold: float
+    posture_model: Any  # 재접속 시 재캘리브레이션 없이 모델 복원 (서버 메모리 한정)
 
 # 모든 WebSocket 연결을 추적하는 중앙 매니저.
 class ConnectionManager:
@@ -75,6 +80,7 @@ class ConnectionManager:
             or state.baseline_delta_depth is None
             or state.baseline_std is None
             or state.threshold is None
+            or state.posture_model is None
         ):
             return
 
@@ -82,6 +88,7 @@ class ConnectionManager:
             baseline_delta_depth=state.baseline_delta_depth,
             baseline_std=state.baseline_std,
             threshold=state.threshold,
+            posture_model=state.posture_model,
         )
 
     def forget_calibration(self, user_id: Optional[str]) -> None:
@@ -101,6 +108,7 @@ class ConnectionManager:
         state.baseline_delta_depth = snapshot.baseline_delta_depth
         state.baseline_std = snapshot.baseline_std
         state.threshold = snapshot.threshold
+        state.posture_model = snapshot.posture_model
         state.ema_value = snapshot.baseline_delta_depth
         return True
 
