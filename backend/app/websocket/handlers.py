@@ -6,9 +6,18 @@ import time
 import json
 import io
 import traceback
+import warnings
 
 import numpy as np
 from PIL import Image
+
+# MediaPipe가 내부적으로 쓰는 옛 protobuf API의 deprecation 경고를 억제.
+# (기능에는 영향 없고, 매 프레임 출력돼 콘솔 로그를 가리기 때문에 끔)
+warnings.filterwarnings(
+    "ignore",
+    message=r".*SymbolDatabase\.GetPrototype\(\) is deprecated.*",
+    category=UserWarning,
+)
 
 # 서버용 websocket
 from fastapi import WebSocket, WebSocketDisconnect
@@ -364,10 +373,11 @@ async def _process_calibration_frame(state: SessionState, delta_depth: float) ->
 async def _process_monitoring_frame(state: SessionState, delta_depth: float) -> None:
     """모니터링 모드의 프레임 처리"""
     prev_state = state.is_turtle_active
-    
+
     result = detection.detect(state, delta_depth)
     if result is None:
         return  # 안전망 (이론상 도달하지 않음)
+
 
     # 1. 매 프레임 결과를 클라이언트에 전송
     await send_json(state.websocket, DetectionResultMsg(
