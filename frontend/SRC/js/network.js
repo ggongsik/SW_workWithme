@@ -174,16 +174,9 @@ export async function initWebSocket() {
         emitPostureEvent('server-error', data);
       }
       else if (data && (data.type === 'session_ended' || data.type === 'SessionEnded' || data.hasOwnProperty('report_id'))) {
-        console.log(" 세션 종료 및 리포트 ID 수신:", data.report_id);
-
+        console.log("세션 종료 수신:", data.session_id);
         isCalibrated = false;
-
-        if (data.report_id) {
-            fetchAndShowReport(data.report_id);
-        } else {
-            alert("저장된 리포트 데이터가 없습니다.");
-            if (window.restoreUI) window.restoreUI();
-        }
+        fetchAndShowReport();
       }
     } catch (err) {
       console.error("서버 응답 파싱 실패:", err);

@@ -227,15 +227,9 @@ export function logout() {
     window.togglePlay();
   }
 
-  console.log("종료 처리 시작! 백엔드에 세션 종료 요청 및 리포트 강제 호출");
+  console.log("종료 처리 시작! 백엔드에 세션 종료 요청");
 
-  // 1. 혹시 모를 열려있는 세션을 위해 종료 신호 전송
-  setTimeout(() => {
-    if (typeof fetchAndShowReport === 'function') {
-      fetchAndShowReport();
-    }
-  }, 1000);
-
+  // session_ended WebSocket 메시지로 리포트를 불러오지만, 혹시 못 받으면 4초 후 fallback
   // 3. 만약 4초가 지났는데도 리포트 화면이 안 뜬다면? (진짜로 오늘 데이터가 0초인 경우)
   setTimeout(() => {
     const overlay = document.getElementById('report-overlay');

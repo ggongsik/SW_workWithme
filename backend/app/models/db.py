@@ -77,6 +77,17 @@ async def _ensure_legacy_schema_compatibility(conn) -> None:
         text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_firebase_uid ON users (firebase_uid)")
     )
 
+    sessions_info = await conn.execute(text("PRAGMA table_info(sessions)"))
+    sessions_columns = {row[1] for row in sessions_info.fetchall()}
+
+    if "user_id" not in sessions_columns:
+        await conn.execute(text("ALTER TABLE sessions ADD COLUMN user_id VARCHAR REFERENCES users(id)"))
+        # user_id를 알 수 없는 기존 세션은 고아 레코드이므로 삭제
+        await conn.execute(text("DELETE FROM sessions WHERE user_id IS NULL"))
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_sessions_user_id ON sessions (user_id)")
+        )
+
 
 async def init_db() -> None:
     """
