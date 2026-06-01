@@ -13,6 +13,7 @@ let phase = 'focus';           // 현재 상태 ('focus' 또는 'break')
 let pomoLeft = focusMin * 60;  // 남은 시간 (초 단위)
 let pomoRunning = false;       // 타이머 동작 여부
 let pomoTimer = null;          // setInterval 타이머 ID
+let pomoSoundEnabled = localStorage.getItem('lofi_pomo_sound') !== 'off';
 
 // ── 2. 알림음 (Web Audio API) 세팅 ──
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -37,6 +38,7 @@ function beep(freq, dur, type = 'sine', vol = 0.3) {
 
 // 1페이즈(작업/휴식)가 끝났을 때 나오는 알람 (내부 전용)
 function playEndChime() {
+  if (!pomoSoundEnabled) return;
   beep(880, 0.18, 'sine', 0.25);
   setTimeout(() => beep(1100, 0.18, 'sine', 0.22), 200);
   setTimeout(() => beep(1320, 0.35, 'sine', 0.2), 400);
@@ -59,6 +61,61 @@ function updateRing() {
     ringEl.style.strokeDashoffset = (CIRC * pct).toFixed(2);
     ringEl.style.stroke = (phase === 'focus') ? '#39c5bb' : '#9af3e6';
   }
+  renderPomoStatus();
+}
+
+function formatDuration(seconds) {
+  const safeSeconds = Math.max(0, Number(seconds) || 0);
+  const min = Math.floor(safeSeconds / 60);
+  const sec = safeSeconds % 60;
+  return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+}
+
+function formatEndTime() {
+  const end = new Date(Date.now() + Math.max(0, pomoLeft) * 1000);
+  return `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`;
+}
+
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value;
+}
+
+function syncPomoInputs() {
+  const focusInputs = ['focus-inp', 'focus-setting-inp'];
+  const breakInputs = ['break-inp', 'break-setting-inp'];
+  const repeatInputs = ['repeat-val', 'repeat-setting-inp'];
+
+  focusInputs.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = focusMin;
+  });
+  breakInputs.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = breakMin;
+  });
+  repeatInputs.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if ('value' in el) el.value = repeatTotal;
+    else el.textContent = repeatTotal;
+  });
+}
+
+function renderPomoStatus() {
+  const leftText = formatDuration(pomoLeft);
+  const phaseText = phase === 'focus' ? '집중' : '휴식';
+  const stateText = pomoRunning ? `${phaseText} 중` : `${phaseText} 대기`;
+  const endPrefix = pomoRunning ? '종료' : '예상 종료';
+  const endText = `${endPrefix} ${formatEndTime()}`;
+
+  setText('phone-pomo-time', leftText);
+  setText('phone-pomo-state', stateText);
+  setText('phone-pomo-end', endText);
+  setText('focus-settings-phase', stateText);
+  setText('focus-settings-left', leftText);
+  setText('focus-settings-end', endText);
+  syncPomoInputs();
 }
 
 // 작업 <-> 휴식 전환
@@ -69,9 +126,11 @@ function switchPhase() {
     if (repeatDone >= repeatTotal) {
       // 모든 세트 완료 시 종료
       stopPomo();
-      beep(660, 0.15); 
-      setTimeout(() => beep(880, 0.15), 180); 
-      setTimeout(() => beep(1100, 0.4), 360);
+      if (pomoSoundEnabled) {
+        beep(660, 0.15);
+        setTimeout(() => beep(880, 0.15), 180);
+        setTimeout(() => beep(1100, 0.4), 360);
+      }
       return;
     }
     phase = 'break';
@@ -88,7 +147,9 @@ function stopPomo() {
   clearInterval(pomoTimer); 
   pomoRunning = false; 
   pomoTimer = null;
-  document.getElementById('pomo-play').textContent = '▶';
+  const play = document.getElementById('pomo-play');
+  if (play) play.textContent = '|>';
+  renderPomoStatus();
 }
 
 // 초기화 (내부 전용)
@@ -100,8 +161,13 @@ function resetPomo() {
   updateRing();
 }
 
+export function resetPomoTimer() {
+  resetPomo();
+}
+
 // 모듈 로딩 시 UI 링 게이지 1회 초기화
 updateRing(); 
+renderPomoStatus();
 
 
 // ============================================================================
@@ -115,7 +181,8 @@ export function togglePomo() {
   
   if (!pomoRunning) {
     pomoRunning = true;
-    document.getElementById('pomo-play').textContent = '⏸';
+    const play = document.getElementById('pomo-play');
+    if (play) play.textContent = '||';
     pomoTimer = setInterval(() => { 
       if (pomoLeft > 0) {
         pomoLeft--;
@@ -142,6 +209,15 @@ export function commitRepeat(el) {
   repeatTotal = Math.max(1, Math.min(10, v));
   el.textContent = repeatTotal;
   if (!pomoRunning) resetPomo();
+  else renderPomoStatus();
+}
+
+export function commitRepeatInput(inputId = 'repeat-setting-inp') {
+  const input = document.getElementById(inputId);
+  const v = parseInt(input?.value) || 3;
+  repeatTotal = Math.max(1, Math.min(10, v));
+  if (!pomoRunning) resetPomo();
+  else renderPomoStatus();
 }
 
 // 입력 창에서 엔터(Enter)나 ESC 키를 눌렀을 때 처리
@@ -156,22 +232,41 @@ export function numOnly(e, el) {
 }
 
 // 작업 시간(분) 입력 값 적용
-export function commitFocus() {
-  const inputVal = parseInt(document.getElementById('focus-inp').value) || 25;
+export function commitFocus(inputId = 'focus-inp') {
+  const inputVal = parseInt(document.getElementById(inputId)?.value) || 25;
   focusMin = Math.max(1, Math.min(90, inputVal));
-  document.getElementById('focus-inp').value = focusMin;
   
   if (!pomoRunning) resetPomo();
+  else renderPomoStatus();
 }
 
 // 휴식 시간(분) 입력 값 적용
-export function commitBreak() {
-  const inputVal = parseInt(document.getElementById('break-inp').value) || 5;
+export function commitBreak(inputId = 'break-inp') {
+  const inputVal = parseInt(document.getElementById(inputId)?.value) || 5;
   breakMin = Math.max(1, Math.min(30, inputVal));
-  document.getElementById('break-inp').value = breakMin;
   
   if (!pomoRunning && phase === 'break') {
     pomoLeft = breakMin * 60;
     updateRing();
   }
+  renderPomoStatus();
 }
+
+export function setPomoSound(enabled, el) {
+  pomoSoundEnabled = !!enabled;
+  localStorage.setItem('lofi_pomo_sound', pomoSoundEnabled ? 'on' : 'off');
+  if (el?.parentElement) {
+    el.parentElement.querySelectorAll('.tpill').forEach(pill => pill.classList.remove('on'));
+    el.classList.add('on');
+  }
+
+  const on = document.getElementById('pomo-sound-on');
+  const off = document.getElementById('pomo-sound-off');
+  if (on) on.classList.toggle('on', pomoSoundEnabled);
+  if (off) off.classList.toggle('on', !pomoSoundEnabled);
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  renderPomoStatus();
+  setPomoSound(pomoSoundEnabled);
+});

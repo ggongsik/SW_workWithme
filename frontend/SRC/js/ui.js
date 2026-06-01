@@ -8,6 +8,7 @@ import { registerUser, loginUser } from './firebase.js';
 import { getBackendApiBase, getBackendAuthToken, initWebSocket, sendCommand } from './network.js';
 import { openCalibration, closeCalibration, startCalibration, togglePostureCorrection, stopCamera } from './pose.js';
 let timeFmt = 12; // 시간 형식 (12시/24시)
+let widgetSide = localStorage.getItem('lofi_widget_side') || 'left';
 
 // PiP 모드와 메인 UI가 공유할 현재 상태 변수
 export let currentGlowState = 'idle';
@@ -50,19 +51,16 @@ function syncPhoneController() {
   const playerTitle = document.getElementById('player-title')?.textContent?.trim() || '파일을 추가하세요';
   const playerArtist = document.getElementById('player-artist')?.textContent?.trim() || 'Playlist';
   const playerBar = document.getElementById('player-bar')?.style.width || '0%';
-  const focusMin = document.getElementById('focus-inp')?.value || '25';
-  const breakMin = document.getElementById('break-inp')?.value || '5';
-  const pomoPlay = document.getElementById('pomo-play')?.textContent?.trim() || '▶';
   const noteCount = document.querySelectorAll('#note-list .note-item').length;
   const todoCount = document.getElementById('todo-count')?.textContent?.trim() || '0 / 0 완료';
+  const d = new Date();
 
   setText('phone-track-title', playerTitle || '파일을 추가하세요');
   setText('phone-track-artist', playerArtist || 'Playlist');
   const phoneMusicBar = document.getElementById('phone-music-bar');
   if (phoneMusicBar) phoneMusicBar.style.width = playerBar;
 
-  setText('phone-pomo-time', `${focusMin} / ${breakMin}`);
-  setText('phone-pomo-state', pomoPlay === '⏸' ? 'running' : 'ready');
+  setText('phone-calendar-date', `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`);
   setText('phone-note-count', `${noteCount} notes`);
   setText('phone-todo-count', todoCount.replace('완료', '').trim());
 }
@@ -139,6 +137,7 @@ function makeDraggable(el, handle) {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
+  applyWidgetSide(widgetSide);
   setInterval(updateClock, 1000);
   setInterval(syncPhoneController, 1000);
   updateClock();
@@ -223,7 +222,7 @@ export function logout() {
     stopCamera();
   }
 
-  if (window.togglePlay && document.getElementById('play-btn').textContent === '⏸') {
+  if (window.togglePlay && document.getElementById('play-btn').textContent === '||') {
     window.togglePlay();
   }
 
@@ -440,8 +439,10 @@ export function restoreUI() {
 
 export function setTimeFmt(fmt, el) {
   timeFmt = fmt;
-  document.querySelectorAll('#stab-gen .tpill').forEach(p => p.classList.remove('on'));
-  el.classList.add('on');
+  if (el?.parentElement) {
+    el.parentElement.querySelectorAll('.tpill').forEach(p => p.classList.remove('on'));
+    el.classList.add('on');
+  }
   updateClock();
 }
 
@@ -449,9 +450,39 @@ export function setTab(tab, el) {
   document.querySelectorAll('.stab').forEach(s => s.classList.remove('on'));
   el.classList.add('on');
   document.getElementById('stab-gen').style.display = tab === 'gen' ? 'block' : 'none';
+  const focusTab = document.getElementById('stab-focus');
+  if (focusTab) focusTab.style.display = tab === 'focus' ? 'block' : 'none';
   document.getElementById('stab-audio').style.display = tab === 'audio' ? 'block' : 'none';
   const debugTab = document.getElementById('stab-debug');
   if (debugTab) debugTab.style.display = tab === 'debug' ? 'block' : 'none';
+}
+
+function applyWidgetSide(side) {
+  widgetSide = side === 'right' ? 'right' : 'left';
+  document.body.classList.toggle('widget-right', widgetSide === 'right');
+  document.body.classList.toggle('widget-left', widgetSide !== 'right');
+  localStorage.setItem('lofi_widget_side', widgetSide);
+
+  const left = document.getElementById('widget-side-left');
+  const right = document.getElementById('widget-side-right');
+  if (left) left.classList.toggle('on', widgetSide !== 'right');
+  if (right) right.classList.toggle('on', widgetSide === 'right');
+}
+
+export function setWidgetSide(side, el) {
+  applyWidgetSide(side);
+  if (el?.parentElement) {
+    el.parentElement.querySelectorAll('.tpill').forEach(p => p.classList.remove('on'));
+    el.classList.add('on');
+  }
+}
+
+export function openFocusSettings() {
+  const setPanel = document.getElementById('panel-set');
+  if (setPanel) setPanel.classList.add('open');
+  document.querySelectorAll('[data-phone-target="set"]').forEach(el => el.classList.add('on'));
+  const focusTabButton = [...document.querySelectorAll('.setting-tabs .stab')].find(el => el.textContent.trim() === '집중');
+  if (focusTabButton) setTab('focus', focusTabButton);
 }
 
 
@@ -563,7 +594,7 @@ export async function togglePiP() {
             </div>
             <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
               <button class="pip-btn" id="pip-prev">⏮</button>
-              <button class="pip-btn" id="pip-play" style="font-size: 18px;">▶</button>
+              <button class="pip-btn" id="pip-play" style="font-size: 18px;">|&gt;</button>
               <button class="pip-btn" id="pip-next">⏭</button>
             </div>
           </div>

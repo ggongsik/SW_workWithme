@@ -22,9 +22,17 @@ audio.addEventListener('play', () => syncPlayButton(true));
 audio.addEventListener('pause', () => syncPlayButton(false));
 
 function syncPlayButton(isPlaying) {
-  const symbol = isPlaying ? '⏸' : '▶';
+  const symbol = isPlaying ? '||' : '|>';
   const mainBtn = document.getElementById('play-btn');
-  if (mainBtn) mainBtn.textContent = symbol;
+  if (mainBtn) {
+    mainBtn.textContent = symbol;
+    mainBtn.classList.toggle('active', isPlaying);
+  }
+  const phoneBtn = document.getElementById('phone-play-btn');
+  if (phoneBtn) {
+    phoneBtn.textContent = symbol;
+    phoneBtn.classList.toggle('active', isPlaying);
+  }
   if (pipWindow && !pipWindow.closed) {
     const pipBtn = pipWindow.document.getElementById('pip-play');
     if (pipBtn) pipBtn.textContent = symbol;
@@ -709,7 +717,9 @@ export function reloadPlaylistForUser() {
   if (artistEl) artistEl.textContent = "음악을 추가하세요";
   
   const playBtn = document.getElementById('play-btn');
-  if (playBtn) playBtn.textContent = '▶';
+  if (playBtn) playBtn.textContent = '|>';
+  const phoneBtn = document.getElementById('phone-play-btn');
+  if (phoneBtn) phoneBtn.textContent = '|>';
 
   // 내 DB만 다시 로드하기
   loadSavedTracks(); 

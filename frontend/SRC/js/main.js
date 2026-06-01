@@ -6,12 +6,13 @@
 import { initWebSocket } from './network.js';
 import { openCalibration, closeCalibration, startCalibration, togglePostureCorrection } from './pose.js';
 import { 
-  checkLogin, logout, hideUI, restoreUI, togglePanel, closePanel, setTab, setTimeFmt, togglePiP, setUIGlow, closeReportAndLogout, fetchAndShowReport, isSignupMode, toggleSignupMode, handleSignup
+  checkLogin, logout, hideUI, restoreUI, togglePanel, closePanel, setTab, setTimeFmt, setWidgetSide, openFocusSettings, togglePiP, setUIGlow, closeReportAndLogout, fetchAndShowReport, isSignupMode, toggleSignupMode, handleSignup
 } from './ui.js';
 import { 
-  adjRepeat, commitRepeat, numOnly, commitFocus, commitBreak, togglePomo 
+  adjRepeat, commitRepeat, commitRepeatInput, numOnly, commitFocus, commitBreak, togglePomo, resetPomoTimer, setPomoSound
 } from './pomodoro.js';
 import { togglePlay, prevTrack, nextTrack, toggleShuffle, toggleYouTubeVideo, removeTrack, addFiles, addYouTubeToPlaylist, refreshPlayerUI } from './player.js';
+import { toggleWhiteNoise } from './noise.js';
 import { 
   addNoteFromInput, saveCurrentNote, selectNote, deleteNote, 
   addTodo, toggleTodo, deleteTodo, 
@@ -35,6 +36,8 @@ window.togglePanel = togglePanel;
 window.closePanel = closePanel;
 window.setTab = setTab;
 window.setTimeFmt = setTimeFmt;
+window.setWidgetSide = setWidgetSide;
+window.openFocusSettings = openFocusSettings;
 window.togglePiP = togglePiP;
 window.setUIGlow = setUIGlow;
 window.closeReportAndLogout = closeReportAndLogout;
@@ -46,10 +49,14 @@ window.handleSignup = handleSignup;
 // [포모도로 타이머]
 window.adjRepeat = adjRepeat;
 window.commitRepeat = commitRepeat;
+window.commitRepeatInput = commitRepeatInput;
 window.numOnly = numOnly;
 window.commitFocus = commitFocus;
 window.commitBreak = commitBreak;
 window.togglePomo = togglePomo;
+window.resetPomoTimer = resetPomoTimer;
+window.setPomoSound = setPomoSound;
+window.toggleWhiteNoise = toggleWhiteNoise;
 
 // [오디오 플레이어]
 window.prevTrack = prevTrack;
