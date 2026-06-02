@@ -93,12 +93,10 @@ async def handle_posture_connection(websocket: WebSocket, user_id: str | None = 
         state.mode == "monitoring"
         and state.baseline_delta_depth is not None
         and state.baseline_std is not None
-        and state.threshold is not None
     ):
         await send_json(websocket, CalibrationComplete(
             baseline_delta_depth = round(state.baseline_delta_depth, 4),
             baseline_std = round(state.baseline_std, 4),
-            threshold = round(state.threshold, 4)
         ))
 
     close_reason = "unknown"
@@ -238,7 +236,6 @@ async def _stop_calibration(state: SessionState) -> None:
     await send_json(state.websocket, CalibrationComplete(
         baseline_delta_depth = round(result.baseline, 4),
         baseline_std = round(result.std, 4),
-        threshold = round(result.threshold, 4)
     ))
     manager.remember_calibration(state)
     # 캘리브레이션 완료 시점을 첫 이벤트로 기록 (정상 상태 시작점)
@@ -248,7 +245,7 @@ async def _stop_calibration(state: SessionState) -> None:
         delta_depth_smoothed=result.baseline,
     ))
     print(f"[{state.session_id[:8]}] 캘리브레이션 완료: "
-          f"baseline={result.baseline:.4f}, threshold={result.threshold:.4f}")
+          f"baseline={result.baseline:.4f}, std={result.std:.4f}")
 
 async def _start_monitoring(state: SessionState) -> None:
     """
@@ -385,7 +382,6 @@ async def _process_monitoring_frame(state: SessionState, delta_depth: float) -> 
         delta_depth = round(result.delta_depth, 4),
         delta_depth_smoothed = round(result.delta_depth_smoothed, 4),
         baseline = round(result.baseline, 4),
-        threshold = round(result.threshold_high, 4),
         timestamp = result.timestamp
     ))
 

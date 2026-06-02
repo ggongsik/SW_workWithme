@@ -22,8 +22,6 @@ class DetectionResult:
     delta_depth: float
     delta_depth_smoothed: float
     baseline: float
-    threshold_low: float   # 표시·참고용 (검출엔 미사용)
-    threshold_high: float  # 표시·참고용 (검출엔 미사용)
     timestamp: float
 
 """ AI 파이프라인이 자체적으로 EMA를 한다면 빼는 거 고려"""
@@ -59,15 +57,10 @@ def detect(state: SessionState, raw_delta_depth: float) -> Optional[DetectionRes
     is_turtle = personalization.is_turtle(state.posture_model, new_ema)
     state.is_turtle_active = is_turtle
 
-    # threshold 값은 표시·참고용으로만 계산해서 메시지에 실어보냄
-    threshold_ref = state.threshold if state.threshold is not None else baseline
-
     return DetectionResult(
         is_turtle = is_turtle,
         delta_depth = raw_delta_depth,
         delta_depth_smoothed = new_ema,
         baseline = baseline,
-        threshold_low = baseline,
-        threshold_high = threshold_ref,
         timestamp = time.time()
     )
