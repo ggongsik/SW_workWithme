@@ -131,7 +131,14 @@
         </section>
       </div>
 
-      <button class="report-btn" onclick="closeReportAndLogout()">리포트 닫기 및 최종 로그아웃</button>
+      <div style="display: flex; gap: 12px; width: 100%; margin-top: 10px;">
+        <button class="report-btn" style="flex: 1; background: linear-gradient(90deg, #64748b, #94a3b8); color: #fff;" onclick="closeReportOnly()">
+          뒤로 가기
+        </button>
+        <button class="report-btn" style="flex: 1;" onclick="closeReportAndLogout()">
+          최종 로그아웃
+        </button>
+      </div>
     </div>
   </div>
 
@@ -236,10 +243,7 @@
     <div class="phone-calib-track">
       <div id="phone-calib-bar"></div>
     </div>
-    <div class="posture-sample-row">
-      <span>기준 자세</span>
-      <strong id="phone-calib-count">0/30</strong>
-    </div>
+    
     
     <button class="phone-primary-action" style="cursor:pointer; border:none;" onclick="openCalibration()">
       자세 측정 열기
@@ -288,7 +292,7 @@
       <div class="app-btn-icon"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><polygon points="10 8 16 12 10 16 10 8"></polygon></svg></div>
       <span>뮤비</span>
     </button>
-    <button class="app-btn" onclick="testReport()">
+    <button class="app-btn" onclick="fetchAndShowReport()">
       <div class="app-btn-icon"><svg viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg></div>
       <span>통계</span>
     </button>

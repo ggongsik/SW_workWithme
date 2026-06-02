@@ -873,3 +873,103 @@ window.toggleTimerWidget = function() {
     pomo.classList.toggle('open');
   }
 }; 
+
+document.body.addEventListener('click', () => {
+  if (typeof alertAudioCtx !== 'undefined' && alertAudioCtx.state === 'suspended') {
+    alertAudioCtx.resume();
+  }
+  if (window.noiseCtx && window.noiseCtx.state === 'suspended') {
+    window.noiseCtx.resume();
+  }
+}, { once: true });
+
+// 기존 updatePhonePostureVisual 함수를 덮어씌워서 소리 재생 로직 추가!
+window.updatePhonePostureVisual = function(state) {
+  const normalized = state === 'caution' ? 'warn' : (state || 'idle');
+  const widget = document.getElementById('phone-posture-widget');
+  const controller = document.getElementById('phone-controller');
+  
+  const prevState = widget ? widget.dataset.state : 'idle';
+
+  if (widget) widget.dataset.state = normalized;
+  if (controller) controller.dataset.posture = normalized;
+
+  if (normalized === 'alert') {
+    document.getElementById('phone-posture-state').textContent = 'ALERT';
+    // 🚨 이전 상태가 alert가 아니었는데 방금 alert가 되었다면 사이렌 발사!
+    if (prevState !== 'alert' && typeof playAlertSound === 'function') {
+      playAlertSound(); 
+    }
+  } else if (normalized === 'warn') {
+    document.getElementById('phone-posture-state').textContent = 'WARNING';
+  } else {
+    document.getElementById('phone-posture-state').textContent = 'NORMAL';
+  }
+};
+
+
+// ============================================================================
+// 🎧 2. Web Audio API 기반 '백색소음' 생성기 (이력서에 적으신 그 기술!)
+// ============================================================================
+window.noiseCtx = null;
+let noiseSource, noiseGain;
+let isNoisePlaying = false;
+
+window.toggleNoise = function() {
+  if (!window.noiseCtx) {
+    window.noiseCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const bufferSize = window.noiseCtx.sampleRate * 2; // 2초 길이의 AudioBuffer
+    const buffer = window.noiseCtx.createBuffer(1, bufferSize, window.noiseCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    
+    // 랜덤 샘플(화이트노이즈) 채우기
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+    
+    noiseSource = window.noiseCtx.createBufferSource();
+    noiseSource.buffer = buffer;
+    noiseSource.loop = true; // 무한 반복(loop)
+    
+    // Lowpass 필터를 적용해 귀가 편안한 '브라운/핑크 노이즈' 질감으로 변경
+    const filter = window.noiseCtx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 1000;
+    
+    noiseGain = window.noiseCtx.createGain();
+    noiseGain.gain.value = 0.08; // 적당하고 편안한 볼륨
+    
+    noiseSource.connect(filter);
+    filter.connect(noiseGain);
+    noiseGain.connect(window.noiseCtx.destination);
+    noiseSource.start();
+    isNoisePlaying = true;
+  } else {
+    // 이미 생성되어 있다면 일시정지 / 재생 상태만 토글
+    if (window.noiseCtx.state === 'running') {
+      window.noiseCtx.suspend();
+      isNoisePlaying = false;
+    } else if (window.noiseCtx.state === 'suspended') {
+      window.noiseCtx.resume();
+      isNoisePlaying = true;
+    }
+  }
+  
+  // 백색소음 앱 버튼에 민트색 하이라이트(on 클래스) 켜고 끄기
+  const btn = document.querySelector('.app-btn[onclick*="toggleNoise"]');
+  if (btn) btn.classList.toggle('on', isNoisePlaying);
+};
+
+
+// ============================================================================
+// 🔙 3. 리포트 화면 '뒤로 가기' (로그아웃 안 함)
+// ============================================================================
+window.closeReportOnly = function() {
+  const overlay = document.getElementById('report-overlay');
+  if (overlay) {
+    overlay.classList.remove('active');
+    setTimeout(() => {
+      overlay.style.display = 'none';
+    }, 600); // 0.6초 뒤에 완전히 숨김 (애니메이션 대기)
+  }
+};
