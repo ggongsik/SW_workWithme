@@ -21,7 +21,6 @@ class CalibrationComplete(BaseModel):
     type: Literal["calibration_complete"] = "calibration_complete"
     baseline_delta_depth: float
     baseline_std: float
-    threshold: float # baseline_delta_depth + 2*baseline_std
 
 class CalibrationProgress(BaseModel):
     type: Literal["calibration_progress"] = "calibration_progress"
@@ -36,7 +35,6 @@ class DetectionResult(BaseModel):
     delta_depth: float
     delta_depth_smoothed: float
     baseline: float
-    threshold: float
     timestamp: float
 
 class SessionEnded(BaseModel):
