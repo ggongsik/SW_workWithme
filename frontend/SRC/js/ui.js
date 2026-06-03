@@ -279,8 +279,23 @@ export function logout() {
     const overlay = document.getElementById('report-overlay');
     // 리포트 오버레이가 안 열렸다면 강제 종료
     if (!overlay || !overlay.classList.contains('active')) {
-      alert("오늘 측정된 기록이 없거나, 리포트를 불러올 수 없습니다. 안녕히 가세요!");
-      closeReportAndLogout();
+      const totalTimeEl = document.getElementById('report-total-time');
+      const maxTimeEl = document.getElementById('report-max-time');
+      const ratioEl = document.getElementById('report-ratio');
+
+      if (totalTimeEl) totalTimeEl.innerHTML = '0<span>분</span>';
+      if (maxTimeEl) maxTimeEl.innerHTML = '0<span>분</span>';
+      if (ratioEl) ratioEl.innerHTML = '0<span>%</span>';
+
+      // 2. 쫓아내지 않고 리포트 창을 강제로 엽니다!
+      const overlay = document.getElementById('report-overlay');
+      if (overlay) {
+          overlay.style.display = 'flex'; // 화면에 표시
+          setTimeout(() => {
+              overlay.classList.add('active'); 
+          }, 10);
+      }
+return;
     }
   }, 4000);
 }
@@ -345,6 +360,37 @@ export function showDailyReport(data) {
     if(totalEl) totalEl.innerHTML = `${totalDurationMin}<span style="font-size:16px">분</span>`;
     if(maxEl) maxEl.innerHTML = `${maxStreakMin}<span style="font-size:16px">분</span>`;
     if(ratioEl) ratioEl.innerHTML = `${turtleRatioPct}<span style="font-size:16px">%</span>`;
+
+    const ratio = today.turtle_ratio; 
+    const commentEl = document.getElementById('report-comment');
+
+    if (commentEl) {
+      // 상태 키워드 밑에 들어갈 상세 코멘트 텍스트 스타일링
+      const textStyle = "font-size: 14px; color: #a0c0d8; line-height: 1.5; word-break: keep-all; font-weight: normal; margin-top: 5px;";
+
+      if (ratio < 20) {
+        commentEl.innerHTML = `
+          <div style="color: #39c5bb;">안전 🟢</div>
+          <div style="${textStyle}">
+            훌륭합니다! 바른 자세를 아주 잘 유지하고 계시네요. <br> 지금처럼 척추 건강을 지켜주세요!
+          </div>
+        `;
+      } else if (ratio < 50) {
+        commentEl.innerHTML = `
+          <div style="color: #f59e0b;">주의 🟡</div>
+          <div style="${textStyle}">
+            조금씩 목이 앞으로 나오고 있어요! <br> 모니터 높이를 점검하고, 지금 바로 가볍게 기지개를 켜볼까요? 
+          </div>
+        `;
+      } else {
+        commentEl.innerHTML = `
+          <div style="color: #ef4444;">위험 🔴</div>
+          <div style="${textStyle}">
+            심각한 거북목 상태입니다! <br> 당장 하던 일을 멈추고 아래에 있는 교정 스트레칭을 꼭 해주세요!
+          </div>
+        `;
+      }
+    }
 
 
     // --- [2] 우측 반: 지난 7일간 추이 그래프 (위/아래 2단 막대그래프) ---
