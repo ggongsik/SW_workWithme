@@ -29,9 +29,11 @@ async def save_session_and_accumulate(
     today = datetime.now().strftime("%Y-%m-%d")  # 로컬 날짜 기준 일별 집계
 
     async with get_db_session() as db:
-        # 1. SessionRecord (IF 학습 샘플의 부모 + 캘리브레이션 메타)
+        # 1. SessionRecord (세션 메타). id는 지정하지 않고 매번 새 UUID 자동 발급.
+        #    한 WebSocket 연결(같은 state.session_id) 안에서 재캘리브레이션으로
+        #    여러 번 저장될 수 있으므로, PK로 state.session_id를 재사용하면
+        #    UNIQUE 충돌이 난다. 저장 단위마다 독립적인 행으로 남긴다.
         session_record = SessionRecord(
-            id = state.session_id,
             user_id = state.user_id,
             started_at = state.started_at,
             ended_at = session_ended_at,
