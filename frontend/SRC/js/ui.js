@@ -4,7 +4,7 @@
 // ============================================================================
 import { setTimerVolume } from './pomodoro.js'; // 새로 추가!
 import { reloadPlaylistForUser, setMusicVolume } from './player.js';
-import { registerUser, loginUser } from './firebase.js';
+import { registerUser, loginUser, saveUserData, loadUserData } from './firebase.js';
 import { getBackendApiBase, getBackendAuthToken, initWebSocket, sendCommand } from './network.js';
 import { openCalibration, closeCalibration, startCalibration, togglePostureCorrection, stopCamera } from './pose.js';
 let timeFmt = 12; // 시간 형식 (12시/24시)
@@ -972,4 +972,91 @@ window.closeReportOnly = function() {
       overlay.style.display = 'none';
     }, 600); // 0.6초 뒤에 완전히 숨김 (애니메이션 대기)
   }
+};
+
+// ============================================================================
+// ☁️ Firebase 클라우드 연동 (노트, To-Do, 캘린더 자동 동기화)
+// ============================================================================
+
+// 1. Firebase에서 내 데이터를 불러와서 화면에 세팅하는 함수
+async function restoreAppData() {
+  const email = localStorage.getItem('lofi_user_id');
+  if (!email || email === 'admin') return;
+
+  console.log("☁️ Firebase에서 유저 데이터를 불러오는 중...");
+  const data = await loadUserData(email);
+  
+  if (data) {
+    // 💡 HTML에 존재하는 정확한 ID들로 매핑
+    const noteList = document.getElementById('note-list');
+    const todoList = document.getElementById('todo-list'); 
+    const calGrid = document.getElementById('cal-grid');             // 캘린더 날짜(마커) 영역
+    const calLabelList = document.getElementById('cal-label-list');  // 캘린더 텍스트 일정 영역
+
+    if (data.noteHTML && noteList) noteList.innerHTML = data.noteHTML;
+    if (data.todoHTML && todoList) todoList.innerHTML = data.todoHTML;
+    if (data.calGridHTML && calGrid) calGrid.innerHTML = data.calGridHTML;
+    if (data.calLabelHTML && calLabelList) calLabelList.innerHTML = data.calLabelHTML;
+    
+    // 데이터 복구 후 폰 컨트롤러 텍스트 동기화
+    if (typeof syncPhoneController === 'function') syncPhoneController();
+  }
+  
+  // 복구가 완전히 끝난 후에야 '자동 저장 CCTV'를 켭니다. 
+  startAutoSaveObserver();
+}
+
+async function syncDataToFirebase() {
+  const email = localStorage.getItem('lofi_user_id');
+  if (!email || email === 'admin') return;
+
+  // 💡 정확한 ID에서 HTML을 추출하여 저장
+  const dataToSave = {
+    noteHTML: document.getElementById('note-list')?.innerHTML || '',
+    todoHTML: document.getElementById('todo-list')?.innerHTML || '',
+    calGridHTML: document.getElementById('cal-grid')?.innerHTML || '',
+    calLabelHTML: document.getElementById('cal-label-list')?.innerHTML || '',
+    updatedAt: new Date().toISOString()
+  };
+
+  await saveUserData(email, dataToSave);
+}
+
+// 3. 화면 변화 감지 CCTV (MutationObserver) 및 디바운싱(Debouncing) 로직
+let autoSaveTimer = null;
+
+function startAutoSaveObserver() {
+  const targetIds = ['panel-note', 'panel-todo', 'panel-cal']; // 감시할 패널들
+
+  const observer = new MutationObserver(() => {
+    // 타이핑을 할 때마다 저장하면 Firebase 과금이 폭탄 맞을 수 있으므로, 
+    // 변화가 멈추고 '2초'가 지나면 한 번만 싹 모아서 저장합니다. (디바운싱 기법)
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(() => {
+      syncDataToFirebase();
+    }, 2000);
+  });
+
+  // 각 패널들의 내부 HTML 변화를 샅샅이 감시하도록 설정
+  targetIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      observer.observe(el, { childList: true, subtree: true, characterData: true });
+    }
+  });
+  
+  console.log("👀 백그라운드 자동 저장 시스템(CCTV) 가동 시작!");
+}
+
+// 4. 로그인 성공 시 데이터를 불러오도록 기존 함수에 살짝 끼워넣기
+const originalRestoreSavedLogin = window.restoreSavedLogin || restoreSavedLogin;
+window.restoreSavedLogin = function() {
+  originalRestoreSavedLogin();
+  restoreAppData(); // 앱 데이터 복구 추가
+};
+
+const originalCheckLogin = window.checkLogin || checkLogin;
+window.checkLogin = async function() {
+  await originalCheckLogin();
+  restoreAppData(); // 앱 데이터 복구 추가
 };
