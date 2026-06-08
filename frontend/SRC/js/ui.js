@@ -368,14 +368,14 @@ export function showDailyReport(data) {
       // 상태 키워드 밑에 들어갈 상세 코멘트 텍스트 스타일링
       const textStyle = "font-size: 14px; color: #a0c0d8; line-height: 1.5; word-break: keep-all; font-weight: normal; margin-top: 5px;";
 
-      if (ratio < 20) {
+      if (ratio < 0.2) {
         commentEl.innerHTML = `
           <div style="color: #39c5bb;">안전 🟢</div>
           <div style="${textStyle}">
             훌륭합니다! 바른 자세를 아주 잘 유지하고 계시네요. <br> 지금처럼 척추 건강을 지켜주세요!
           </div>
         `;
-      } else if (ratio < 50) {
+      } else if (ratio < 0.5) {
         commentEl.innerHTML = `
           <div style="color: #f59e0b;">주의 🟡</div>
           <div style="${textStyle}">
